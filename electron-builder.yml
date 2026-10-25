@@ -1,0 +1,16 @@
+appId: com.soyleremo3.atolye
+productName: Atolye
+copyright: Copyright © 2026 soyleremo3
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - build/icon.png
+  - package.json
+asar: true
+npmRebuild: false
+win:
+  target: dir
+  icon: build/icon.ico
