@@ -258,8 +258,41 @@ kbd {
 .crumb-name { color: var(--text); font-weight: 500; }
 .view-actions { display: flex; align-items: center; gap: 6px; }
 
-.views { flex: 1; position: relative; min-height: 0; }
-.view { position: absolute; inset: 0; flex-direction: column; }
+/* Yan yana bolmeler: her bolme bir sutun (sekme cubugu / baslik / icerik), aralarda 1px ayirici */
+.groups { flex: 1; display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; min-width: 0; position: relative; }
+.group-bar { display: flex; min-width: 0; position: relative; }
+.group-bar .tabbar { flex: 1; min-width: 0; }
+.group-actions { display: flex; align-items: center; gap: 2px; height: 38px; padding: 0 6px; flex: none; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+.group-actions .icon-btn:disabled { opacity: 0.35; cursor: default; }
+.groups.multi .group-bar:not(.focused) .tab.active { color: var(--muted); }
+.groups.multi .group-bar:not(.focused) .tab.active::after { background: var(--border); }
+.groups.multi .group-bar:not(.focused) .tab.active .tab-icon { color: var(--faint); }
+.view-header { min-width: 0; }
+.view { min-width: 0; min-height: 0; overflow: hidden; flex-direction: column; position: relative; }
+.groups > .welcome { min-width: 0; min-height: 0; }
+
+.group-splitter { position: relative; z-index: 15; background: var(--border); cursor: col-resize; touch-action: none; }
+.group-splitter::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; right: -4px; }
+.group-splitter:hover, .group-splitter.dragging { background: var(--accent); }
+.group-splitter.dragging::after { left: -40px; right: -40px; }
+
+.tab.drop-before::before, .tab.drop-after::before {
+  content: ""; position: absolute; top: 6px; bottom: 2px; width: 2px; border-radius: 2px; background: var(--accent);
+}
+.tab.drop-before::before { left: -2px; }
+.tab.drop-after::before { right: -2px; }
+.tabbar.drop-end { box-shadow: inset -2px 0 0 var(--accent); }
+
+.drop-zone { position: relative; z-index: 20; min-width: 0; min-height: 0; }
+.drop-hint {
+  position: absolute; top: 6px; bottom: 6px; display: grid; place-items: center; pointer-events: none;
+  border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); color: var(--text);
+  font-size: 13px; font-weight: 600; animation: drop-in 0.12s ease-out;
+}
+.drop-hint.center { left: 6px; right: 6px; }
+.drop-hint.left { left: 6px; width: calc(50% - 9px); }
+.drop-hint.right { right: 6px; width: calc(50% - 9px); }
+@keyframes drop-in { from { opacity: 0; } to { opacity: 1; } }
 .note-view { flex: 1; display: flex; min-height: 0; }
 .note-view.mode-split > * { flex: 1 1 50%; min-width: 0; }
 .note-view.mode-split .editor { border-right: 1px solid var(--border); }

@@ -10,7 +10,11 @@ import {
 import { buildIndex, type VaultIndex } from "./lib/vaultIndex";
 
 export type TabKind = "note" | "drawing" | "image" | "graph" | "code" | "http" | "snippets" | "tools" | "file";
-export type Tab = { id: string; path: string; kind: TabKind };
+export type Tab = { id: string; path: string; kind: TabKind; group: string };
+/** Yan yana duzenleyici bolmesi (VS Code'daki "editor group"). size: genislik orani. */
+export type Group = { id: string; active: string | null; size: number };
+export type Side = "left" | "right";
+export const MAX_GROUPS = 6;
 export const GRAPH_PATH = "::graph";
 export const SNIPPETS_PATH = "::snippets";
 export const TOOLS_PATH = "::tools";
@@ -35,7 +39,10 @@ type State = {
   texts: Record<string, string>;
   dirty: Record<string, true>;
   tabs: Tab[];
+  /** Odaktaki bolmenin etkin sekmesi (her zaman groups[activeGroup].active ile ayni). */
   active: string | null;
+  groups: Group[];
+  activeGroup: string;
   modes: Record<string, ViewMode>;
   settings: Settings | null;
   systemDark: boolean;
@@ -48,7 +55,7 @@ type State = {
   toast: { id: number; text: string; kind: "info" | "error" } | null;
   searchQuery: string;
   expanded: Record<string, boolean>;
-  jump: { path: string; line: number; nonce: number } | null;
+  jump: { path: string; line: number; nonce: number; tab?: string } | null;
   history: string[];
   historyIndex: number;
   indexVersion: number;
@@ -65,6 +72,8 @@ export const useStore = create<State>(() => ({
   dirty: {},
   tabs: [],
   active: null,
+  groups: [{ id: "g1", active: null, size: 1 }],
+  activeGroup: "g1",
   modes: {},
   settings: null,
   systemDark: true,
@@ -135,8 +144,7 @@ async function guard<T>(fn: () => Promise<T>): Promise<T | undefined> {
 export async function init(): Promise<void> {
   try {
     const [settings, vault, files, notes] = await Promise.all([api.settings.get(), api.vault.info(), api.vault.list(), api.vault.readAll()]);
-    const tabs = settings.session.tabs.filter((p) => p in VIEW_PATHS || files.some((f) => f.path === p)).map(makeTab);
-    const active = tabs.find((t) => t.path === settings.session.active)?.id ?? tabs[0]?.id ?? null;
+    const restored = restoreLayout(settings.session, new Set(files.filter((f) => !f.dir).map((f) => f.path)));
     set({
       ready: true,
       settings,
@@ -144,13 +152,13 @@ export async function init(): Promise<void> {
       vault,
       files,
       notes,
-      tabs,
-      active,
+      ...restored,
       leftOpen: settings.session.leftOpen,
       rightOpen: settings.session.rightOpen,
     });
     bumpIndex(true);
-    if (!tabs.length) {
+    for (const t of restored.tabs) if (t.kind === "code") void loadText(t.path);
+    if (!restored.tabs.length) {
       const welcome = files.find((f) => f.path === "Atölye'ye hoş geldin.md");
       if (welcome) openPath(welcome.path);
     }
@@ -192,15 +200,70 @@ export async function loadText(path: string): Promise<string | undefined> {
   return content;
 }
 let tabSeq = 0;
-const makeTab = (path: string): Tab => ({ id: `t${++tabSeq}`, path, kind: kindOf(path) });
+const makeTab = (path: string, group: string): Tab => ({ id: `t${++tabSeq}`, path, kind: kindOf(path), group });
+let groupSeq = 1;
+const newGroupId = () => `g${++groupSeq}`;
+
+export const groupTabs = (tabs: Tab[], group: string) => tabs.filter((t) => t.group === group);
 
 export function activeTab(): Tab | null {
   const s = get();
   return s.tabs.find((t) => t.id === s.active) ?? null;
 }
 
-export async function openPath(path: string, opts: { newTab?: boolean; line?: number; history?: boolean } = {}): Promise<void> {
-  const s = get();
+type Layout = Pick<State, "tabs" | "groups" | "activeGroup" | "active">;
+
+/**
+ * Sekme/bolme degisikliklerini tutarli hale getirir: bos bolmeleri kapatir (en az bir bolme kalir),
+ * her bolmenin etkin sekmesini ve odaktaki bolmeyi duzeltir. Tum sekme/bolme yazimlari buradan gecer.
+ */
+function layout(tabs: Tab[], groups: Group[], activeGroup: string): Layout {
+  if (!groups.length) groups = [{ id: newGroupId(), active: null, size: 1 }];
+  const ids = new Set(groups.map((g) => g.id));
+  const fallback = ids.has(activeGroup) ? activeGroup : groups[0].id;
+  tabs = tabs.map((t) => (ids.has(t.group) ? t : { ...t, group: fallback }));
+  let out = groups.filter((g) => tabs.some((t) => t.group === g.id));
+  if (!out.length) out = [{ ...groups[0], active: null, size: 1 }];
+  out = out.map((g) => {
+    const own = tabs.filter((t) => t.group === g.id);
+    return own.some((t) => t.id === g.active) ? g : { ...g, active: own[0]?.id ?? null };
+  });
+  let focus = activeGroup;
+  if (!out.some((g) => g.id === focus)) {
+    // kapanan bolmenin solundaki bolmeye (yoksa ilk bolmeye) gec
+    const old = groups.findIndex((g) => g.id === activeGroup);
+    const left = groups.slice(0, Math.max(0, old)).reverse().find((g) => out.some((x) => x.id === g.id));
+    focus = left?.id ?? out[0].id;
+  }
+  return { tabs, groups: out, activeGroup: focus, active: out.find((g) => g.id === focus)!.active };
+}
+
+/** ref bolmesinin soluna/sagina yeni bos bolme ekler; ref'in genisligini ikiye boler. */
+function insertGroup(groups: Group[], ref: string, side: Side): { groups: Group[]; id: string } | null {
+  if (groups.length >= MAX_GROUPS) {
+    toast(`En fazla ${MAX_GROUPS} bölme açılabilir`);
+    return null;
+  }
+  const i = Math.max(0, groups.findIndex((g) => g.id === ref));
+  const r = groups[i];
+  const id = newGroupId();
+  const half = r.size / 2;
+  const out = groups.map((g) => (g.id === r.id ? { ...g, size: half } : g));
+  out.splice(i + (side === "right" ? 1 : 0), 0, { id, active: null, size: half });
+  return { groups: out, id };
+}
+
+/** Bir sekme kaldirildiginda (kapatma/tasima) bolmesinde yerine gececek komsu sekme. */
+function neighborIn(tabs: Tab[], tab: Tab): string | null {
+  const own = groupTabs(tabs, tab.group);
+  const i = own.findIndex((t) => t.id === tab.id);
+  return (own[i + 1] ?? own[i - 1])?.id ?? null;
+}
+
+/** side: true = sagdaki bolmede (yoksa yeni bolmede) ac; "left"/"right" = o tarafta her zaman yeni bolme ac. */
+type OpenOpts = { newTab?: boolean; line?: number; history?: boolean; group?: string; side?: boolean | Side };
+
+export async function openPath(path: string, opts: OpenOpts = {}): Promise<void> {
   const kind = kindOf(path);
   if (kind === "file") {
     void api.vault.reveal(path);
@@ -208,74 +271,224 @@ export async function openPath(path: string, opts: { newTab?: boolean; line?: nu
   }
   if (kind === "http" && path !== HTTP_PATH) {
     set({ httpFile: path });
-    return openPath(HTTP_PATH, { newTab: true });
+    return openPath(HTTP_PATH, { ...opts, newTab: true, line: undefined });
   }
-  if (kind === "code" && !(path in s.texts) && (await loadText(path)) === undefined) return;
-  if (kind === "note" && !(path in s.notes)) {
+  if (kind === "code" && !(path in get().texts) && (await loadText(path)) === undefined) return;
+  if (kind === "note" && !(path in get().notes)) {
     const content = await guard(() => api.vault.read(path));
     if (content === undefined) return;
     set((st) => ({ notes: { ...st.notes, [path]: content } }));
   }
-  const existing = s.tabs.find((t) => t.path === path);
+  const s = get();
+  let groups = s.groups;
+  let target = opts.group && groups.some((g) => g.id === opts.group) ? opts.group : s.activeGroup;
+  // Cizim tek bolmede acik olabilir (iki kopya birbirinin kaydini ezerdi): aciksa yeni bolme acmadan ona gec
+  const openDrawing = kind === "drawing" ? s.tabs.find((t) => t.path === path) : undefined;
+  if (opts.side && !openDrawing) {
+    const side: Side = opts.side === "left" ? "left" : "right";
+    const i = groups.findIndex((g) => g.id === target);
+    const next = opts.side === true ? groups[i + 1] : undefined;
+    if (next) target = next.id;
+    else {
+      const made = insertGroup(groups, target, side);
+      if (made) ({ groups, id: target } = made);
+    }
+  }
+  // Ayni bolmede zaten aciksa ona gec
+  const existing = openDrawing ?? s.tabs.find((t) => t.group === target && t.path === path);
   let tabs = s.tabs;
-  let active: string;
+  let id: string;
   if (existing) {
-    active = existing.id;
+    id = existing.id;
+    target = existing.group;
   } else {
-    const tab = makeTab(path);
-    const cur = s.tabs.findIndex((t) => t.id === s.active);
-    if (!opts.newTab && cur >= 0 && !(s.tabs[cur].path in VIEW_PATHS) && !s.dirty[s.tabs[cur].path]) {
+    const tab = makeTab(path, target);
+    const curId = groups.find((g) => g.id === target)?.active;
+    const cur = s.tabs.findIndex((t) => t.id === curId);
+    if (!opts.newTab && !opts.side && cur >= 0 && !(s.tabs[cur].path in VIEW_PATHS) && !s.dirty[s.tabs[cur].path]) {
       tabs = [...s.tabs];
       tabs[cur] = tab;
-    } else {
+    } else if (cur >= 0) {
       tabs = [...s.tabs.slice(0, cur + 1), tab, ...s.tabs.slice(cur + 1)];
+    } else {
+      tabs = [...s.tabs, tab];
     }
-    active = tab.id;
+    id = tab.id;
   }
+  groups = groups.map((g) => (g.id === target ? { ...g, active: id } : g));
   const expanded = { ...s.expanded };
   for (let d = dirname(path); d; d = dirname(d)) expanded[d] = true;
-  const patch: Partial<State> = { tabs, active, expanded };
+  const patch: Partial<State> = { ...layout(tabs, groups, target), expanded };
   if (opts.history !== false && !(path in VIEW_PATHS) && path !== s.history[s.historyIndex]) {
     const history = [...s.history.slice(0, s.historyIndex + 1), path].slice(-100);
     patch.history = history;
     patch.historyIndex = history.length - 1;
   }
-  if (opts.line !== undefined) patch.jump = { path, line: opts.line, nonce: Date.now() };
+  if (opts.line !== undefined) patch.jump = { path, line: opts.line, nonce: Date.now(), tab: id };
   set(patch);
   void saveSession();
 }
 
 export function closeTab(id: string): void {
   const s = get();
-  const i = s.tabs.findIndex((t) => t.id === id);
-  if (i < 0) return;
-  const tab = s.tabs[i];
+  const tab = s.tabs.find((t) => t.id === id);
+  if (!tab) return;
   if (s.dirty[tab.path]) void flush(tab.path);
-  const tabs = s.tabs.filter((t) => t.id !== id);
-  const active = s.active === id ? (tabs[i] ?? tabs[i - 1])?.id ?? null : s.active;
-  set({ tabs, active });
+  const groups = s.groups.map((g) => (g.id === tab.group && g.active === id ? { ...g, active: neighborIn(s.tabs, tab) } : g));
+  set(layout(s.tabs.filter((t) => t.id !== id), groups, s.activeGroup));
+  void saveSession();
+}
+
+/** Bir bolmedeki sekmeleri kapatir; keep verilirse o sekme kalir. Son sekme de kapanirsa bolme kapanir. */
+export function closeTabs(group: string, keep?: string): void {
+  const s = get();
+  for (const t of s.tabs) if (t.group === group && t.id !== keep && s.dirty[t.path]) void flush(t.path);
+  const tabs = s.tabs.filter((t) => t.group !== group || t.id === keep);
+  const groups = s.groups.map((g) => (g.id === group ? { ...g, active: keep ?? null } : g));
+  set(layout(tabs, groups, s.activeGroup));
   void saveSession();
 }
 
 export function setActive(id: string): void {
-  set({ active: id });
+  const s = get();
+  const tab = s.tabs.find((t) => t.id === id);
+  if (!tab || (s.active === id && s.activeGroup === tab.group)) return;
+  set(layout(s.tabs, s.groups.map((g) => (g.id === tab.group ? { ...g, active: id } : g)), tab.group));
   void saveSession();
+}
+
+/** Tiklanan / odaklanan bolmeyi etkin yapar. */
+export function focusGroup(group: string): void {
+  const s = get();
+  if (s.activeGroup === group || !s.groups.some((g) => g.id === group)) return;
+  set(layout(s.tabs, s.groups, group));
+  void saveSession();
+}
+
+/** Ctrl+1..6: n. bolmeye gec; hemen sagdaki (henuz olmayan) bolme istenirse etkin sekmeyi oraya bol. */
+export function focusGroupAt(index: number): void {
+  const s = get();
+  const g = s.groups[index];
+  if (g) focusGroup(g.id);
+  else if (index === s.groups.length && s.active) splitTab(s.active, "right");
 }
 
 export function cycleTab(dir: 1 | -1): void {
   const s = get();
-  if (!s.tabs.length) return;
-  const i = s.tabs.findIndex((t) => t.id === s.active);
-  setActive(s.tabs[(i + dir + s.tabs.length) % s.tabs.length].id);
+  const own = groupTabs(s.tabs, s.activeGroup);
+  if (!own.length) return;
+  const i = own.findIndex((t) => t.id === s.active);
+  setActive(own[(i + dir + own.length) % own.length].id);
 }
 
-export function moveTab(id: string, toIndex: number): void {
-  const tabs = [...get().tabs];
-  const from = tabs.findIndex((t) => t.id === id);
-  if (from < 0) return;
-  const [tab] = tabs.splice(from, 1);
-  tabs.splice(Math.max(0, Math.min(toIndex, tabs.length)), 0, tab);
-  set({ tabs });
+/**
+ * Sekmeyi bir bolmenin index sirasina tasir (ayni ya da baska bolme). index, tasinan sekme cikarildiktan
+ * sonraki siradir. Sekmenin kimligi degismez; icerik (editor, cizim) yeniden yuklenmez.
+ */
+export function placeTab(id: string, group: string, index: number): void {
+  const s = get();
+  const tab = s.tabs.find((t) => t.id === id);
+  if (!tab || !s.groups.some((g) => g.id === group)) return;
+  const dup = tab.group !== group ? s.tabs.find((t) => t.group === group && t.path === tab.path) : undefined;
+  let groups = s.groups.map((g) =>
+    g.id === tab.group && g.active === id && tab.group !== group ? { ...g, active: neighborIn(s.tabs, tab) } : g,
+  );
+  const tabs = s.tabs.filter((t) => t.id !== id);
+  if (dup) {
+    // hedef bolmede ayni dosya zaten acik: tasinan kopyayi kapat, oradakine gec
+    if (s.dirty[tab.path]) void flush(tab.path);
+  } else {
+    const moved = { ...tab, group };
+    const own = tabs.filter((t) => t.group === group);
+    const ref = own[Math.max(0, index)];
+    if (ref) tabs.splice(tabs.indexOf(ref), 0, moved);
+    else if (own.length) tabs.splice(tabs.indexOf(own[own.length - 1]) + 1, 0, moved);
+    else tabs.push(moved);
+  }
+  const activeId = dup?.id ?? id;
+  groups = groups.map((g) => (g.id === group ? { ...g, active: activeId } : g));
+  set(layout(tabs, groups, group));
+  void saveSession();
+}
+
+/** Sekmeyi ref bolmesinin yanina acilan yeni bolmeye tasir. */
+export function moveToNewGroup(id: string, ref: string, side: Side): void {
+  const s = get();
+  const tab = s.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  // Tek sekmeli bolmeyi kendi yanina tasimak bir sey degistirmez
+  if (tab.group === ref && groupTabs(s.tabs, ref).length === 1) return;
+  const made = insertGroup(s.groups, ref, side);
+  if (!made) return;
+  set({ groups: made.groups });
+  placeTab(id, made.id, 0);
+}
+
+/** Sekmeyi soldaki/sagdaki bolmeye tasir; o yonde bolme yoksa yenisini acar (VS Code: Ctrl+Alt+Sol/Sag). */
+export function moveTabToSide(id: string, side: Side): void {
+  const s = get();
+  const tab = s.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const i = s.groups.findIndex((g) => g.id === tab.group);
+  const next = s.groups[side === "right" ? i + 1 : i - 1];
+  if (next) placeTab(id, next.id, groupTabs(s.tabs, next.id).length);
+  else moveToNewGroup(id, tab.group, side);
+}
+
+/** Dosyayi yanda yeni bolmede de acar (VS Code: Duzenleyiciyi Bol). Cizim kopyalanmaz, tasinir. */
+export function splitTab(id: string, side: Side = "right"): void {
+  const s = get();
+  const tab = s.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  if (tab.kind === "drawing") {
+    if (groupTabs(s.tabs, tab.group).length === 1) toast("Çizim aynı anda iki bölmede açılamaz; yanına başka bir dosya aç");
+    else moveToNewGroup(id, tab.group, side);
+    return;
+  }
+  const made = insertGroup(s.groups, tab.group, side);
+  if (!made) return;
+  const copy = makeTab(tab.path, made.id);
+  const i = s.tabs.indexOf(tab);
+  const tabs = [...s.tabs.slice(0, i + 1), copy, ...s.tabs.slice(i + 1)];
+  set(layout(tabs, made.groups.map((g) => (g.id === made.id ? { ...g, active: copy.id } : g)), made.id));
+  void saveSession();
+}
+
+/** Bolme genislik oranlarini gunceller (ayirici surukleme). */
+export function resizeGroups(sizes: number[]): void {
+  const s = get();
+  if (sizes.length !== s.groups.length || sizes.some((x) => !(x > 0) || !Number.isFinite(x))) return;
+  set({ groups: s.groups.map((g, i) => ({ ...g, size: sizes[i] })) });
+  void saveSession();
+}
+
+export function equalizeGroups(): void {
+  resizeGroups(get().groups.map(() => 1));
+}
+
+/** Kayitli oturumdan bolmeleri ve sekmeleri kurar (eski, tek listeli oturumlarla uyumlu). */
+function restoreLayout(session: Settings["session"], existing: Set<string>): Layout {
+  const ok = (p: unknown): p is string => typeof p === "string" && (p in VIEW_PATHS || existing.has(p));
+  const saved =
+    Array.isArray(session.groups) && session.groups.length ? session.groups : [{ tabs: session.tabs, active: session.active, size: 1 }];
+  const tabs: Tab[] = [];
+  const groups: Group[] = [];
+  const drawings = new Set<string>();
+  for (const g of saved.slice(0, MAX_GROUPS)) {
+    const id = newGroupId();
+    const seen = new Set<string>();
+    for (const p of Array.isArray(g?.tabs) ? g.tabs : []) {
+      if (!ok(p) || seen.has(p) || drawings.has(p)) continue;
+      seen.add(p);
+      if (isDrawing(p)) drawings.add(p);
+      tabs.push(makeTab(p, id));
+    }
+    const own = groupTabs(tabs, id);
+    const size = Number(g?.size);
+    groups.push({ id, active: own.find((t) => t.path === g?.active)?.id ?? own[0]?.id ?? null, size: size > 0.01 && size < 100 ? size : 1 });
+  }
+  const focus = groups[Number(session.activeGroup) || 0]?.id ?? groups[0]?.id ?? "";
+  return layout(tabs, groups, focus);
 }
 
 export function navigate(dir: -1 | 1): void {
@@ -297,8 +510,14 @@ export function saveSession(now = false): Promise<unknown> | void {
     const s = get();
     return api.settings.set({
       session: {
-        tabs: s.tabs.map((t) => t.path),
+        tabs: [...new Set(s.tabs.map((t) => t.path))],
         active: s.tabs.find((t) => t.id === s.active)?.path ?? null,
+        groups: s.groups.map((g) => ({
+          tabs: groupTabs(s.tabs, g.id).map((t) => t.path),
+          active: s.tabs.find((t) => t.id === g.active)?.path ?? null,
+          size: Math.round(g.size * 1000) / 1000,
+        })),
+        activeGroup: Math.max(0, s.groups.findIndex((g) => g.id === s.activeGroup)),
         leftOpen: s.leftOpen,
         rightOpen: s.rightOpen,
       },
@@ -400,7 +619,7 @@ async function applyExternal(paths: string[]): Promise<void> {
   }
   const tabs = s.tabs.filter((t) => t.path in VIEW_PATHS || existing.has(t.path) || s.dirty[t.path]);
   if (changed || tabs.length !== s.tabs.length) {
-    set({ notes, texts, tabs, active: tabs.some((t) => t.id === s.active) ? s.active : tabs[0]?.id ?? null });
+    set({ notes, texts, ...layout(tabs, s.groups, s.activeGroup) });
     bumpIndex(true);
   }
 }
@@ -631,7 +850,7 @@ export function deletePath(path: string): void {
         const texts = Object.fromEntries(Object.entries(s.texts).filter(([p]) => !gone(p)));
         const dirty = Object.fromEntries(Object.entries(s.dirty).filter(([p]) => !gone(p))) as Record<string, true>;
         const tabs = s.tabs.filter((t) => !gone(t.path));
-        set({ notes, texts, dirty, tabs, active: tabs.some((t) => t.id === s.active) ? s.active : tabs[0]?.id ?? null });
+        set({ notes, texts, dirty, ...layout(tabs, s.groups, s.activeGroup) });
         await refreshFiles();
         void saveSession();
       },
@@ -671,7 +890,7 @@ export async function changeVault(): Promise<void> {
   const vault = await guard(() => api.vault.choose());
   if (!vault) return;
   const [files, notes] = await Promise.all([api.vault.list(), api.vault.readAll()]);
-  set({ vault, files, notes, tabs: [], active: null, dirty: {}, modes: {}, history: [], historyIndex: -1 });
+  set({ vault, files, notes, ...layout([], [], ""), dirty: {}, modes: {}, history: [], historyIndex: -1 });
   bumpIndex(true);
   void saveSession();
 }

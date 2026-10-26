@@ -58,7 +58,8 @@ function ContextMenu() {
 }
 
 // ------------------------------------------------------------------ palet (komutlar / hizli acma / sablonlar)
-type Row = { key: string; label: string; hint?: string; icon?: ReactNode; run: (e: { ctrl: boolean; shift: boolean }) => void };
+type RunEvent = { ctrl: boolean; shift: boolean; alt?: boolean };
+type Row = { key: string; label: string; hint?: string; icon?: ReactNode; run: (e: RunEvent) => void };
 
 function fileIcon(path: string) {
   if (isNote(path)) return <FileText size={15} />;
@@ -101,7 +102,7 @@ function Palette() {
         label: isNote(f.path) ? title(f.path) : f.name,
         hint: dirname(f.path),
         icon: fileIcon(f.path),
-        run: ({ ctrl }) => void openPath(f.path, { newTab: ctrl }),
+        run: ({ ctrl, alt }) => void openPath(f.path, alt ? { side: true } : { newTab: ctrl }),
       }));
       const name = sanitizeName(query);
       if (name && !list.some((f) => title(f.path).toLowerCase() === name.toLowerCase())) {
@@ -120,8 +121,8 @@ function Palette() {
   }, [sel]);
 
   if (!overlay) return null;
-  const placeholder = overlay === "commands" ? "Komut ara…" : overlay === "templates" ? "Şablon seç…" : "Not, kod, istek veya çizim ara…  (Enter aç · Ctrl+Enter yeni sekme)";
-  const run = (row: Row | undefined, e: { ctrl: boolean; shift: boolean }) => {
+  const placeholder = overlay === "commands" ? "Komut ara…" : overlay === "templates" ? "Şablon seç…" : "Not, kod, istek veya çizim ara…  (Enter aç · Ctrl+Enter yeni sekme · Alt+Enter yanda)";
+  const run = (row: Row | undefined, e: RunEvent) => {
     if (!row) return;
     close();
     row.run(e);
@@ -149,7 +150,7 @@ function Palette() {
             } else if (e.key === "Enter") {
               e.preventDefault();
               const create = e.shiftKey && overlay === "switcher" ? rows.find((r) => r.key === "::create") : undefined;
-              run(create ?? rows[sel], { ctrl: e.ctrlKey, shift: e.shiftKey });
+              run(create ?? rows[sel], { ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey });
             }
           }}
         />
@@ -160,7 +161,7 @@ function Palette() {
               key={r.key}
               className={`palette-row${i === sel ? " selected" : ""}`}
               onMouseMove={() => setSel(i)}
-              onClick={(e) => run(r, { ctrl: e.ctrlKey, shift: e.shiftKey })}
+              onClick={(e) => run(r, { ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey })}
             >
               {r.icon && <span className="palette-icon">{r.icon}</span>}
               <span className="palette-label">{r.label}</span>

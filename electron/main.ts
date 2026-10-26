@@ -23,7 +23,15 @@ type Settings = {
   readableWidth: boolean;
   spellcheck: boolean;
   defaultMode: "edit" | "split" | "read";
-  session: { tabs: string[]; active: string | null; leftOpen: boolean; rightOpen: boolean };
+  session: {
+    tabs: string[];
+    active: string | null;
+    /** Yan yana bolmeler (yoksa tek bolme: tabs). */
+    groups?: { tabs: string[]; active: string | null; size: number }[];
+    activeGroup?: number;
+    leftOpen: boolean;
+    rightOpen: boolean;
+  };
   window: { x?: number; y?: number; width: number; height: number; maximized: boolean };
 };
 

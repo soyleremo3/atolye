@@ -1,7 +1,7 @@
 import { memo, useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import {
   ChevronDown, ChevronRight, ChevronsDownUp, Code2, File, FilePlus, FileText, Folder, FolderOpen, FolderPlus, Globe,
-  Image as ImageIcon, PenTool, Pencil, ExternalLink, Trash2, SquareArrowOutUpRight,
+  Image as ImageIcon, PenTool, Pencil, ExternalLink, Trash2, SquareArrowOutUpRight, Columns2,
 } from "lucide-react";
 import { api, type FileEntry } from "../api";
 import { basename, isCode, isDrawing, isHttp, isImage, isNote, join, title } from "../lib/paths";
@@ -38,7 +38,7 @@ function iconFor(e: FileEntry, open: boolean) {
   return <File size={15} />;
 }
 
-const DRAG_TYPE = "application/x-atolye-path";
+export const DRAG_TYPE = "application/x-atolye-path";
 
 function menuFor(e: FileEntry): MenuItem[] {
   const items: MenuItem[] = [];
@@ -50,7 +50,11 @@ function menuFor(e: FileEntry): MenuItem[] {
       "sep",
     );
   } else {
-    items.push({ label: "Yeni sekmede aç", icon: <SquareArrowOutUpRight size={14} />, run: () => void openPath(e.path, { newTab: true }) }, "sep");
+    items.push(
+      { label: "Yeni sekmede aç", icon: <SquareArrowOutUpRight size={14} />, run: () => void openPath(e.path, { newTab: true }) },
+      { label: "Yanda aç (Alt+tık)", icon: <Columns2 size={14} />, run: () => void openPath(e.path, { side: true }) },
+      "sep",
+    );
   }
   items.push(
     { label: "Yeniden adlandır", icon: <Pencil size={14} />, run: () => renamePath(e.path) },
@@ -69,6 +73,7 @@ const TreeRow = memo(function TreeRow({ node, depth, activePath }: { node: Node;
 
   const click = (ev: MouseEvent) => {
     if (e.dir) useStore.setState((s) => ({ expanded: { ...s.expanded, [e.path]: !s.expanded[e.path] } }));
+    else if (ev.altKey) void openPath(e.path, { side: true });
     else void openPath(e.path, { newTab: ev.ctrlKey || ev.button === 1 });
   };
   const drop = async (ev: DragEvent) => {

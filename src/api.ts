@@ -21,7 +21,15 @@ export type Settings = {
   readableWidth: boolean;
   spellcheck: boolean;
   defaultMode: ViewMode;
-  session: { tabs: string[]; active: string | null; leftOpen: boolean; rightOpen: boolean };
+  session: {
+    tabs: string[];
+    active: string | null;
+    /** Yan yana bolmeler (yoksa tek bolme: tabs). */
+    groups?: { tabs: string[]; active: string | null; size: number }[];
+    activeGroup?: number;
+    leftOpen: boolean;
+    rightOpen: boolean;
+  };
   dark: boolean;
 };
 

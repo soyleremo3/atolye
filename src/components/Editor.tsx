@@ -11,6 +11,7 @@ import {
   placeholder, ViewPlugin, type DecorationSet, type ViewUpdate,
 } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
+import { syncDoc } from "../lib/cmsync";
 import { basename, dirname, extname, title } from "../lib/paths";
 import { followLink, getIndex, saveAttachment, updateNote, useStore } from "../store";
 
@@ -239,13 +240,14 @@ const fileHandlers = EditorView.domEventHandlers({
 });
 
 // ------------------------------------------------------------------ bilesen
-type Props = { path: string; content: string; active: boolean; spellcheck: boolean };
+/** active: sekme odaktaki bolmede gorunur (klavye odagi alir). tabId: ayni not iki bolmede acikken satira atlamayi ayirt eder. */
+type Props = { path: string; tabId: string; content: string; active: boolean; spellcheck: boolean };
 
-export function Editor({ path, content, active, spellcheck }: Props) {
+export function Editor({ path, tabId, content, active, spellcheck }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const spell = useRef(new Compartment());
-  const jump = useStore((s) => (s.jump?.path === path ? s.jump : null));
+  const jump = useStore((s) => (s.jump?.path === path && (!s.jump.tab || s.jump.tab === tabId) ? s.jump : null));
 
   useEffect(() => {
     const v = new EditorView({
@@ -290,15 +292,9 @@ export function Editor({ path, content, active, spellcheck }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
-  // Dosya disarida degistiyse (ya da baglanti guncellemesiyle) editoru esitle
+  // Dosya disarida, baglanti guncellemesiyle ya da baska bolmedeki kopyasinda degistiyse editoru esitle
   useEffect(() => {
-    const v = view.current;
-    if (!v) return;
-    const current = v.state.doc.toString();
-    if (current !== content) {
-      const head = Math.min(v.state.selection.main.head, content.length);
-      v.dispatch({ changes: { from: 0, to: current.length, insert: content }, selection: { anchor: head } });
-    }
+    if (view.current) syncDoc(view.current, content);
   }, [content]);
 
   useEffect(() => {

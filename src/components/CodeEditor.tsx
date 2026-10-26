@@ -12,6 +12,7 @@ import {
   drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers,
 } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
+import { syncDoc } from "../lib/cmsync";
 
 const codeHighlight = HighlightStyle.define([
   { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword, t.definitionKeyword], color: "var(--syn-keyword)" },
@@ -121,8 +122,7 @@ export function CodeEditor({ value, onChange, language = "", readOnly, gutter = 
   useEffect(() => {
     const v = view.current;
     if (!v) return;
-    const cur = v.state.doc.toString();
-    if (cur !== value) v.dispatch({ changes: { from: 0, to: cur.length, insert: value } });
+    syncDoc(v, value);
   }, [value]);
 
   useEffect(() => {

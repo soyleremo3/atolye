@@ -44,6 +44,32 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     await wait(800);
   };
   const check = (name: string, ok: boolean, detail = "") => log.push(`${ok ? "GEÇTİ" : "KALDI"}  ${name}${detail ? `  — ${detail}` : ""}`);
+  /** Her bolmedeki sekme basliklari, soldan saga. */
+  const groupTabs = (): Promise<string[][]> =>
+    js(`[...document.querySelectorAll('.group-bar')].map(b => [...b.querySelectorAll('.tab')].map(t => t.querySelector('.tab-title').textContent.trim()))`);
+
+  // Oturum geri yukleme asamalari: eski bicimli oturum (tek sekme listesi) ve kaydedilmis bolmeler
+  const phase = process.env.ATOLYE_SMOKE_PHASE || "full";
+  if (phase !== "full") {
+    try {
+      await wait(2500);
+      const groups = await groupTabs();
+      const focused = await js(`[...document.querySelectorAll('.group-bar')].findIndex(b => b.classList.contains('focused'))`);
+      if (phase === "legacy") {
+        check("eski oturum biçimi tek bölmede açılır", groups.length === 1 && groups[0].length === 2, JSON.stringify(groups));
+      } else {
+        check("bölmeler yeniden açılınca geri gelir", groups.length === 2 && groups[1].includes("Görevler"), JSON.stringify(groups));
+        check("odaktaki bölme hatırlanır", focused === 1, `odak: ${focused}`);
+      }
+      await shot(`${phase}-oturum`);
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    await fs.writeFile(path.join(outDir, `log-${phase}.txt`), log.join("\n"), "utf8");
+    win.close();
+    return;
+  }
 
   try {
     win.focus();
@@ -143,6 +169,110 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     await shot("12-komut-paleti");
     await key("Escape");
 
+    // --- yan yana bolmeler
+    const DRAWING = "Mimari taslak.excalidraw";
+    await openQuick("Sistem mimarisi");
+    await js(`document.querySelector('.group-actions .icon-btn')?.click()`);
+    await wait(900);
+    let groups = await groupTabs();
+    check("sağa bölme: iki bölmede aynı not", groups.length === 2 && groups[1].includes("Sistem mimarisi"), JSON.stringify(groups));
+    await key("End", ["control"]);
+    await type(" BOLME");
+    await wait(1500);
+    const synced = await js(
+      `[...document.querySelectorAll('.view')].filter(v => v.style.display !== 'none').filter(v => (v.querySelector('.cm-content')?.textContent || '').includes('BOLME')).length`,
+    );
+    check("bir bölmede yazılan diğerinde görünür ve kaydedilir", synced === 2 && read("Mimari/Sistem mimarisi.md").includes("BOLME"), `${synced} editör`);
+    await shot("13-bolmeler");
+
+    // cizimi sag bolmede yeni sekmede ac, sonra sekmesini sol bolmeye surukle: cizim yeniden yuklenmemeli
+    await key("O", ["control"]);
+    await type("Mimari taslak");
+    await key("Return", ["control"]);
+    await wait(3000);
+    const marked = await js(`(() => {
+      const v = [...document.querySelectorAll('.view')].find(v => v.style.display !== 'none' && v.querySelector('.excalidraw'));
+      window.__drawingView = v;
+      return !!v;
+    })()`);
+    await js(`(() => {
+      const bars = document.querySelectorAll('.group-bar .tabbar');
+      const tab = [...bars[1].querySelectorAll('.tab')].find(t => t.textContent.includes('Mimari taslak'));
+      const dt = new DataTransfer();
+      tab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      const o = { bubbles: true, cancelable: true, dataTransfer: dt };
+      bars[0].dispatchEvent(new DragEvent('dragover', o));
+      bars[0].dispatchEvent(new DragEvent('drop', o));
+      tab.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+    })()`);
+    await wait(1200);
+    groups = await groupTabs();
+    const sameDrawing = await js(`(() => {
+      const v = window.__drawingView;
+      return !!v && v.isConnected && v.style.display !== 'none' && !!v.querySelector('.excalidraw canvas')
+        && v.style.gridColumn.startsWith('1');
+    })()`);
+    check(
+      "sekmeyi sürükleyip diğer bölmeye taşıma (çizim yeniden yüklenmez)",
+      marked && sameDrawing && groups.length === 2 && groups[0].includes(DRAWING) && !groups[1].includes(DRAWING),
+      `${JSON.stringify(groups)} işaretli=${marked} aynı-görünüm=${sameDrawing}`,
+    );
+    await shot("14-cizim-tasindi");
+
+    // ayiriciyi gercek fareyle sola surukle
+    const sp = await js(`(() => { const r = document.querySelector('.group-splitter').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + r.height / 2) }; })()`);
+    const w0 = await js(`document.querySelectorAll('.group-bar')[0].getBoundingClientRect().width`);
+    wc.sendInputEvent({ type: "mouseDown", x: sp.x, y: sp.y, button: "left", clickCount: 1 });
+    for (let i = 1; i <= 10; i++) {
+      wc.sendInputEvent({ type: "mouseMove", x: sp.x - i * 15, y: sp.y, modifiers: ["leftbuttondown"] });
+      await wait(30);
+    }
+    wc.sendInputEvent({ type: "mouseUp", x: sp.x - 150, y: sp.y, button: "left", clickCount: 1 });
+    await wait(600);
+    const w1 = await js(`document.querySelectorAll('.group-bar')[0].getBoundingClientRect().width`);
+    check("ayırıcıyla bölme genişliği değiştirme", Math.abs(w0 - 150 - w1) < 25, `${Math.round(w0)} → ${Math.round(w1)} px`);
+
+    // klavye: Ctrl+1 sol bolmeye gec, Ctrl+Alt+Sag etkin sekmeyi saga tasi
+    await key("1", ["control"]);
+    const focus1 = await js(`[...document.querySelectorAll('.group-bar')].findIndex(b => b.classList.contains('focused'))`);
+    await key("Right", ["control", "alt"]);
+    await wait(800);
+    groups = await groupTabs();
+    check("Ctrl+1 ve Ctrl+Alt+Sağ", focus1 === 0 && groups[1].includes(DRAWING) && !groups[0].includes(DRAWING), `${JSON.stringify(groups)} odak=${focus1}`);
+
+    // kenar cubugundan dosyayi en sagdaki bolmenin sag kenarina birak: yeni bolme
+    await js(`(() => {
+      const row = [...document.querySelectorAll('.tree-row')].find(r => r.title === 'Görevler.md');
+      const dt = new DataTransfer();
+      window.__fileDt = dt;
+      window.__fileRow = row;
+      row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      document.body.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: dt }));
+    })()`);
+    await wait(400);
+    await js(`(() => {
+      const zones = document.querySelectorAll('.drop-zone');
+      const z = zones[zones.length - 1];
+      const r = z.getBoundingClientRect();
+      const o = { bubbles: true, cancelable: true, dataTransfer: window.__fileDt, clientX: r.right - 8, clientY: r.top + r.height / 2 };
+      z.dispatchEvent(new DragEvent('dragover', o));
+      z.dispatchEvent(new DragEvent('drop', o));
+      window.__fileRow.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: window.__fileDt }));
+    })()`);
+    await wait(1200);
+    groups = await groupTabs();
+    const zonesLeft = await js(`document.querySelectorAll('.drop-zone').length`);
+    check("dosyayı sürükleyip bölmenin sağına bırakma", groups.length === 3 && groups[2].includes("Görevler") && zonesLeft === 0, JSON.stringify(groups));
+    await shot("15-uc-bolme");
+
+    // ortadaki bolmeyi kapat: iki bolme kalir, odak komsuya gecer
+    await js(`document.querySelectorAll('.group-bar')[1].querySelector('.group-actions .icon-btn:last-child').click()`);
+    await wait(800);
+    groups = await groupTabs();
+    check("bölmeyi kapatma", groups.length === 2 && groups[1].includes("Görevler"), JSON.stringify(groups));
+    await js(`document.querySelectorAll('.group-bar')[1].querySelector('.tab').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))`);
+    await wait(300);
+
     log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
   } catch (e) {
     log.push(`SMOKE HATA: ${String(e)}`);
@@ -151,7 +281,11 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
 
   // --- kapanirken kaydetme: yaz ve hemen kapat
   try {
-    await openQuick("Sistem mimarisi");
+    // odaktaki (sag) bolmede yeni sekmede ac: Gorevler sekmesi bolmede kalsin (geri yukleme asamasi bunu denetler)
+    await key("O", ["control"]);
+    await type("Sistem mimarisi");
+    await key("Return", ["control"]);
+    await wait(800);
     await key("End", ["control"]);
     await type(" KAPANIS");
     win.on("closed", () => {

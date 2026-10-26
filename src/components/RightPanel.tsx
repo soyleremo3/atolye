@@ -14,7 +14,7 @@ function Outline({ path }: { path: string }) {
           key={i}
           className="outline-row"
           style={{ paddingLeft: 12 + (h.level - min) * 14 }}
-          onClick={() => useStore.setState({ jump: { path, line: h.line, nonce: Date.now() } })}
+          onClick={() => useStore.setState((s) => ({ jump: { path, line: h.line, nonce: Date.now(), tab: s.active ?? undefined } }))}
         >
           {h.text}
         </button>

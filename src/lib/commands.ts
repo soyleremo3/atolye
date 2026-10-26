@@ -1,7 +1,7 @@
 /** Komut paleti ve klavye kisayollari tek listeden beslenir. */
 import { api } from "../api";
 import {
-  activeTab, changeVault, closeTab, cycleTab, flushAll, HTTP_PATH, modeOf, navigate, newDrawing, newFolder, newNote, newRequestFile,
+  activeTab, changeVault, closeTab, closeTabs, cycleTab, equalizeGroups, focusGroupAt, moveTabToSide, splitTab, flushAll, HTTP_PATH, modeOf, navigate, newDrawing, newFolder, newNote, newRequestFile,
   newSnippet, openBoard, openDaily, openGraph, openSearch, openView, renamePath, deletePath, setMode, SNIPPETS_PATH, toggleLeft,
   toggleRight, TOOLS_PATH, updateSettings, useStore,
 } from "../store";
@@ -43,12 +43,19 @@ export const COMMANDS: Command[] = [
     run: () => { const t = noteTab(); if (t) setMode(t.path, modeOf(t.path) === "edit" ? "read" : "edit"); },
   },
   {
-    id: "mode.split", title: "Yan yana önizleme", keys: "Ctrl+\\", when: () => !!noteTab(),
+    id: "mode.split", title: "Önizlemeyle yan yana", keys: "Ctrl+\\", when: () => !!noteTab(),
     run: () => { const t = noteTab(); if (t) setMode(t.path, modeOf(t.path) === "split" ? "edit" : "split"); },
   },
   { id: "save", title: "Kaydet", keys: "Ctrl+S", run: () => void flushAll() },
   { id: "tab.close", title: "Sekmeyi kapat", keys: "Ctrl+W", run: () => { const t = activeTab(); if (t) closeTab(t.id); } },
   { id: "tab.next", title: "Sonraki sekme", keys: "Ctrl+Tab", run: () => cycleTab(1) },
+  { id: "group.split", title: "Sağa böl (dosyayı yan yana aç)", when: () => !!activeTab(), run: () => { const t = activeTab(); if (t) splitTab(t.id, "right"); } },
+  { id: "group.splitLeft", title: "Sola böl", when: () => !!activeTab(), run: () => { const t = activeTab(); if (t) splitTab(t.id, "left"); } },
+  { id: "group.moveRight", title: "Sekmeyi sağdaki bölmeye taşı", keys: "Ctrl+Alt+Right", when: () => !!activeTab(), run: () => { const t = activeTab(); if (t) moveTabToSide(t.id, "right"); } },
+  { id: "group.moveLeft", title: "Sekmeyi soldaki bölmeye taşı", keys: "Ctrl+Alt+Left", when: () => !!activeTab(), run: () => { const t = activeTab(); if (t) moveTabToSide(t.id, "left"); } },
+  ...[1, 2, 3, 4, 5, 6].map((n) => ({ id: `group.focus${n}`, title: `${n}. bölmeye geç`, keys: `Ctrl+${n}`, run: () => focusGroupAt(n - 1) })),
+  { id: "group.close", title: "Bölmeyi kapat", when: () => useStore.getState().groups.length > 1, run: () => closeTabs(useStore.getState().activeGroup) },
+  { id: "group.equalize", title: "Bölme genişliklerini eşitle", when: () => useStore.getState().groups.length > 1, run: equalizeGroups },
   { id: "tab.prev", title: "Önceki sekme", keys: "Ctrl+Shift+Tab", run: () => cycleTab(-1) },
   { id: "nav.back", title: "Geri git", keys: "Alt+Left", run: () => navigate(-1) },
   { id: "nav.forward", title: "İleri git", keys: "Alt+Right", run: () => navigate(1) },
