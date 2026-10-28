@@ -3,7 +3,7 @@
  * Uygulamayi gercek pencerede gezer, her adimin ekran goruntusunu kaydeder, sonuclari log.txt'ye yazar ve kapanir.
  */
 import { app, clipboard, type BrowserWindow } from "electron";
-import { promises as fs, readFileSync, writeFileSync } from "node:fs";
+import { promises as fs, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -109,6 +109,41 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     const bitti = board.slice(board.indexOf("## Bitti"));
     check("kartı sürükleyip Bitti'ye taşıma", moved && /- \[x\] Giriş ekranı için/.test(bitti), "taşınan kart işaretlendi mi");
     await shot("04-pano-sonra");
+
+    // satir ekle: pano sutun x satir izgarasina gecer, eski kartlar "Satirsiz" satirinda kalir
+    await js(`document.querySelector('.board-head-actions .btn')?.click()`);
+    await wait(400);
+    await type("Marketing");
+    await key("Return");
+    await wait(1200);
+    const lanes = await js(`[...document.querySelectorAll('.board-row-title')].map(r => r.textContent)`);
+    check("panoya satır ekleme", /### Marketing/.test(read("Görevler.md")) && JSON.stringify(lanes) === '["Satırsız","Marketing"]', JSON.stringify(lanes));
+    const addedRow = await js(`(() => { const b = document.querySelector('.board-cell[data-row="Marketing"] .board-add'); b?.click(); return !!b; })()`);
+    await wait(300);
+    await type("Satır kartı");
+    await key("Return");
+    await key("Escape");
+    await wait(1200);
+    const yapilacak = read("Görevler.md").split("## Yapılıyor")[0];
+    check("satırdaki hücreye kart ekleme", addedRow && /### Marketing\n- \[ \] Satır kartı/.test(yapilacak), yapilacak.slice(-120));
+    // satirsiz bir karti Bitti sutununun Marketing hucresine surukle
+    const movedRow = await js(`(() => {
+      const card = document.querySelector('.board-cell[data-row=""] .card');
+      const cells = [...document.querySelectorAll('.board-cell[data-row="Marketing"]')];
+      const target = cells[cells.length - 1];
+      if (!card || !target) return false;
+      const dt = new DataTransfer();
+      card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      const r = target.getBoundingClientRect();
+      const opts = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + 20, clientY: r.bottom - 10 };
+      target.dispatchEvent(new DragEvent('dragover', opts));
+      target.dispatchEvent(new DragEvent('drop', opts));
+      return true;
+    })()`);
+    await wait(1200);
+    const bittiRow = read("Görevler.md").split("## Bitti")[1] ?? "";
+    check("kartı başka satır + sütuna sürükleme", movedRow && /### Marketing\n- \[x\] /.test(bittiRow), bittiRow.slice(0, 200));
+    await shot("04b-pano-satirlar");
 
     // --- kod parcalari
     await key("S", ["control", "alt"]);
@@ -270,8 +305,30 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     await wait(800);
     groups = await groupTabs();
     check("bölmeyi kapatma", groups.length === 2 && groups[1].includes("Görevler"), JSON.stringify(groups));
+    // kapanan bolmenin yeri bos kalmamali: kalan bolmeler tum genisligi doldurur
+    const [usedW, fullW] = await js(`(() => {
+      const g = document.querySelector('.groups');
+      const used = [...g.querySelectorAll(':scope > .group-bar, :scope > .group-splitter')].reduce((n, b) => n + b.getBoundingClientRect().width, 0);
+      return [Math.round(used), Math.round(g.getBoundingClientRect().width)];
+    })()`);
+    check("bölme kapanınca kalanlar alanı doldurur", usedW >= fullW - 4, `${usedW} / ${fullW} px`);
     await js(`document.querySelectorAll('.group-bar')[1].querySelector('.tab').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))`);
     await wait(300);
+
+    // uygulamadan yeni gorev panosu olustur
+    await key("N", ["control", "alt"]);
+    await wait(400);
+    await type("Proje panosu");
+    await key("Return");
+    await wait(1500);
+    // dosya odaktaki notun klasorune olusur
+    const newBoardRel = (readdirSync(vault, { recursive: true }) as string[]).find((f) => path.basename(f) === "Proje panosu.md") ?? "Proje panosu.md";
+    const newBoardFile = read(newBoardRel);
+    const boardShown = await js(`[...document.querySelectorAll('.view')].some(v => v.style.display !== 'none' && v.querySelector('.board .board-col'))`);
+    check("yeni görev panosu oluşturma", /atolye: board/.test(newBoardFile) && /## Yapılacak/.test(newBoardFile) && boardShown, newBoardFile.slice(0, 60));
+    await shot("16-yeni-pano");
+    await key("W", ["control"]);
+    await wait(500);
 
     log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
   } catch (e) {

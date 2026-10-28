@@ -1,12 +1,12 @@
 import { memo, useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import {
   ChevronDown, ChevronRight, ChevronsDownUp, Code2, File, FilePlus, FileText, Folder, FolderOpen, FolderPlus, Globe,
-  Image as ImageIcon, PenTool, Pencil, ExternalLink, Trash2, SquareArrowOutUpRight, Columns2,
+  Image as ImageIcon, KanbanSquare, PenTool, Pencil, ExternalLink, Trash2, SquareArrowOutUpRight, Columns2,
 } from "lucide-react";
 import { api, type FileEntry } from "../api";
 import { basename, isCode, isDrawing, isHttp, isImage, isNote, join, title } from "../lib/paths";
 import { searchNotes } from "../lib/vaultIndex";
-import { deletePath, movePath, newDrawing, newFolder, newNote, openPath, openSearch, renamePath, useIndex, useStore } from "../store";
+import { deletePath, movePath, newBoard, newDrawing, newFolder, newNote, openPath, openSearch, renamePath, useIndex, useStore } from "../store";
 import { openMenu, type MenuItem } from "./Overlays";
 
 type Node = { entry: FileEntry; children: Node[] };
@@ -45,6 +45,7 @@ function menuFor(e: FileEntry): MenuItem[] {
   if (e.dir) {
     items.push(
       { label: "Yeni not", icon: <FilePlus size={14} />, run: () => newNote(e.path) },
+      { label: "Yeni görev panosu", icon: <KanbanSquare size={14} />, run: () => newBoard(e.path) },
       { label: "Yeni çizim", icon: <PenTool size={14} />, run: () => newDrawing(e.path) },
       { label: "Yeni klasör", icon: <FolderPlus size={14} />, run: () => newFolder(e.path) },
       "sep",
@@ -131,6 +132,7 @@ function FileTree() {
         <span className="panel-title">{useStore.getState().vault?.name ?? "Dosyalar"}</span>
         <div className="panel-actions">
           <button className="icon-btn" title="Yeni not (Ctrl+N)" onClick={() => newNote()}><FilePlus size={16} /></button>
+          <button className="icon-btn" title="Yeni görev panosu (Ctrl+Alt+N)" onClick={() => newBoard()}><KanbanSquare size={16} /></button>
           <button className="icon-btn" title="Yeni çizim (Ctrl+Shift+N)" onClick={() => newDrawing()}><PenTool size={16} /></button>
           <button className="icon-btn" title="Yeni klasör" onClick={() => newFolder()}><FolderPlus size={16} /></button>
           <button className="icon-btn" title="Tümünü daralt" onClick={() => useStore.setState({ expanded: {} })}><ChevronsDownUp size={16} /></button>
@@ -156,6 +158,7 @@ function FileTree() {
           ev.preventDefault();
           openMenu(ev.clientX, ev.clientY, [
             { label: "Yeni not", icon: <FilePlus size={14} />, run: () => newNote("") },
+            { label: "Yeni görev panosu", icon: <KanbanSquare size={14} />, run: () => newBoard("") },
             { label: "Yeni çizim", icon: <PenTool size={14} />, run: () => newDrawing("") },
             { label: "Yeni klasör", icon: <FolderPlus size={14} />, run: () => newFolder("") },
           ]);

@@ -7,7 +7,7 @@ import { api, vaultUrl, type ViewMode } from "../api";
 import { exportNote } from "../lib/exporter";
 import { basename, dirname, isBoardNote, title } from "../lib/paths";
 import {
-  closeTab, closeTabs, deletePath, focusGroup, groupTabs, HTTP_PATH, isDark, isViewPath, moveTabToSide, moveToNewGroup, newDrawing, newNote,
+  closeTab, closeTabs, deletePath, focusGroup, groupTabs, HTTP_PATH, isDark, isViewPath, moveTabToSide, moveToNewGroup, newBoard, newDrawing, newNote,
   newSnippet, openBoard, openDaily, openPath, openView, placeTab, renamePath, resizeGroups, equalizeGroups, setActive, setMode, splitTab,
   TOOLS_PATH, useIndex, useStore, type Group, type Side, type Tab,
 } from "../store";
@@ -291,6 +291,7 @@ function EmptyState() {
         <button className="btn primary" onClick={() => newNote()}><FilePlus size={15} /> Yeni not <kbd>Ctrl+N</kbd></button>
         <button className="btn" onClick={() => newSnippet()}><Braces size={15} /> Yeni kod parçası <kbd>Ctrl+Alt+S</kbd></button>
         <button className="btn" onClick={() => void openBoard()}><KanbanSquare size={15} /> Görev panosu <kbd>Ctrl+Alt+B</kbd></button>
+        <button className="btn" onClick={() => newBoard()}><KanbanSquare size={15} /> Yeni görev panosu <kbd>Ctrl+Alt+N</kbd></button>
         <button className="btn" onClick={() => openView(HTTP_PATH)}><Globe size={15} /> HTTP istekleri <kbd>Ctrl+Alt+H</kbd></button>
         <button className="btn" onClick={() => openView(TOOLS_PATH)}><Wrench size={15} /> Geliştirici araçları <kbd>Ctrl+Alt+A</kbd></button>
         <button className="btn" onClick={() => newDrawing()}><PenTool size={15} /> Yeni çizim / şema <kbd>Ctrl+Shift+N</kbd></button>

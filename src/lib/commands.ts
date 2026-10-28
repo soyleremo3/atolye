@@ -1,7 +1,7 @@
 /** Komut paleti ve klavye kisayollari tek listeden beslenir. */
 import { api } from "../api";
 import {
-  activeTab, changeVault, closeTab, closeTabs, cycleTab, equalizeGroups, focusGroupAt, moveTabToSide, splitTab, flushAll, HTTP_PATH, modeOf, navigate, newDrawing, newFolder, newNote, newRequestFile,
+  activeTab, changeVault, closeTab, closeTabs, cycleTab, equalizeGroups, focusGroupAt, moveTabToSide, splitTab, flushAll, HTTP_PATH, modeOf, navigate, newBoard, newDrawing, newFolder, newNote, newRequestFile,
   newSnippet, openBoard, openDaily, openGraph, openSearch, openView, renamePath, deletePath, setMode, SNIPPETS_PATH, toggleLeft,
   toggleRight, TOOLS_PATH, updateSettings, useStore,
 } from "../store";
@@ -29,6 +29,7 @@ export const COMMANDS: Command[] = [
   { id: "snippet.new", title: "Yeni kod parçası", run: newSnippet },
   { id: "snippets", title: "Kod parçaları kütüphanesi", keys: "Ctrl+Alt+S", run: () => openView(SNIPPETS_PATH) },
   { id: "board", title: "Görev panosu (Kanban)", keys: "Ctrl+Alt+B", run: () => void openBoard() },
+  { id: "board.new", title: "Yeni görev panosu", keys: "Ctrl+Alt+N", run: () => newBoard() },
   { id: "http", title: "HTTP istekleri", keys: "Ctrl+Alt+H", run: () => openView(HTTP_PATH) },
   { id: "http.new", title: "Yeni HTTP istek dosyası", run: newRequestFile },
   { id: "tools", title: "Geliştirici araçları (JSON, Regex, JWT, Base64…)", keys: "Ctrl+Alt+A", run: () => openView(TOOLS_PATH) },

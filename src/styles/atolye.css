@@ -55,6 +55,20 @@
 .drop-line { height: 3px; border-radius: 2px; background: var(--accent); margin: 0 0 6px; }
 .board-add { display: flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 8px 14px 10px; border-radius: 8px; }
 .board-add:hover { color: var(--text); background: var(--bg-hover); }
+.board-head-actions { display: flex; gap: 8px; }
+/* satirli pano: sutun x satir izgarasi; satir basliklari ve sutun basliklari kaydirirken sabit kalir */
+.board-grid { flex: 1; display: grid; gap: 8px; padding: 4px 18px 18px; overflow: auto; min-height: 0; align-content: start; }
+.board-corner { position: sticky; top: 0; left: 0; z-index: 3; background: var(--bg); }
+.board-grid-head { position: sticky; top: 0; z-index: 2; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
+.board-row-head { position: sticky; left: 0; z-index: 1; display: flex; align-items: flex-start; gap: 6px; padding: 10px 10px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; }
+.board-row-head.loose .board-row-title { color: var(--muted); font-style: italic; }
+.board-row-title { font-weight: 650; flex: 1; min-width: 0; overflow-wrap: break-word; cursor: default; }
+.board-row-head .icon-btn { opacity: 0; }
+.board-row-head:hover .icon-btn { opacity: 1; }
+.board-cell { display: flex; flex-direction: column; min-height: 84px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; }
+.board-cell.over { border-color: var(--accent); }
+.board-cell .board-cards { flex: none; overflow: visible; padding-top: 8px; }
+.board-cell .board-add { padding: 6px 14px 8px; }
 
 /* HTTP istemcisi */
 .http-view { flex: 1; display: flex; min-height: 0; height: 100%; }

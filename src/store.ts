@@ -224,9 +224,13 @@ function layout(tabs: Tab[], groups: Group[], activeGroup: string): Layout {
   tabs = tabs.map((t) => (ids.has(t.group) ? t : { ...t, group: fallback }));
   let out = groups.filter((g) => tabs.some((t) => t.group === g.id));
   if (!out.length) out = [{ ...groups[0], active: null, size: 1 }];
+  // Genislik oranlarini ortalamasi 1 olacak sekilde olcekle: bolme kapaninca bosalan yer kalanlara dagilir
+  // (fr toplami 1'in altina duserse grid alanin tamamini doldurmaz).
+  const sum = out.reduce((n, g) => n + (g.size > 0 ? g.size : 1), 0);
   out = out.map((g) => {
     const own = tabs.filter((t) => t.group === g.id);
-    return own.some((t) => t.id === g.active) ? g : { ...g, active: own[0]?.id ?? null };
+    const size = ((g.size > 0 ? g.size : 1) * out.length) / sum;
+    return { ...g, size, active: own.some((t) => t.id === g.active) ? g.active : own[0]?.id ?? null };
   });
   let focus = activeGroup;
   if (!out.some((g) => g.id === focus)) {
@@ -635,7 +639,7 @@ export const openView = (path: string) => void openPath(path, { newTab: true });
 /** Gorev panosunu ac (yoksa olustur). */
 export async function openBoard(): Promise<void> {
   if (get().files.some((f) => f.path === BOARD_FILE)) return openPath(BOARD_FILE);
-  await createNote(BOARD_FILE, "---\natolye: board\n---\n\n## Yapılacak\n\n## Yapılıyor\n\n## Bitti\n");
+  await createNote(BOARD_FILE, BOARD_TEMPLATE);
 }
 
 export function newSnippet(): void {
@@ -665,6 +669,16 @@ export function newRequestFile(): void {
 
 function prompt(title: string, value: string, onSubmit: (v: string) => void | Promise<void>, okText = "Oluştur"): void {
   set({ dialog: { type: "prompt", title, value, okText, selectAll: true, onSubmit } });
+}
+
+export const BOARD_TEMPLATE = "---\natolye: board\n---\n\n## Yapılacak\n\n## Yapılıyor\n\n## Bitti\n";
+
+/** Yeni, bos bir gorev panosu (Kanban notu) olusturur. */
+export function newBoard(folder = currentFolder()): void {
+  prompt("Yeni görev panosu", "Yeni pano", async (name) => {
+    const clean = sanitizeName(name) || "Yeni pano";
+    await createNote(join(folder, `${clean}.md`), BOARD_TEMPLATE);
+  });
 }
 
 export function newNote(folder = currentFolder()): void {
