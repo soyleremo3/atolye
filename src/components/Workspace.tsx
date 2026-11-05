@@ -266,6 +266,7 @@ function StatusBar() {
   const tab = useStore((s) => s.tabs.find((t) => t.id === s.active));
   const content = useStore((s) => (tab?.kind === "note" ? s.notes[tab.path] : undefined));
   const dirty = useStore((s) => (tab ? !!s.dirty[tab.path] : false));
+  const saveError = useStore((s) => (tab ? s.saveErrors[tab.path] : undefined));
   const idx = useIndex();
   if (!tab || tab.kind !== "note" || content === undefined) return <footer className="statusbar" />;
   const words = idx.parsed.get(tab.path)?.words ?? 0;
@@ -276,7 +277,13 @@ function StatusBar() {
       <span>{words.toLocaleString("tr")} kelime</span>
       <span>{content.length.toLocaleString("tr")} karakter</span>
       <span>~{Math.max(1, Math.round(words / 200))} dk okuma</span>
-      <span className={dirty ? "saving" : "saved"}>{dirty ? "Kaydediliyor…" : "Kaydedildi"}</span>
+      {saveError ? (
+        <span className="save-failed" title={saveError}>
+          Kaydedilemedi · yedekte güvende, yeniden deneniyor
+        </span>
+      ) : (
+        <span className={dirty ? "saving" : "saved"}>{dirty ? "Kaydediliyor…" : "Kaydedildi"}</span>
+      )}
     </footer>
   );
 }

@@ -38,6 +38,8 @@ type State = {
   notes: Record<string, string>;
   texts: Record<string, string>;
   dirty: Record<string, true>;
+  /** Kasaya yazilamayan dosyalar (yol -> hata). Icerik taslak yedeginde guvende, arka planda yeniden denenir. */
+  saveErrors: Record<string, string>;
   tabs: Tab[];
   /** Odaktaki bolmenin etkin sekmesi (her zaman groups[activeGroup].active ile ayni). */
   active: string | null;
@@ -70,6 +72,7 @@ export const useStore = create<State>(() => ({
   notes: {},
   texts: {},
   dirty: {},
+  saveErrors: {},
   tabs: [],
   active: null,
   groups: [{ id: "g1", active: null, size: 1 }],
@@ -131,11 +134,13 @@ export function toast(text: string, kind: "info" | "error" = "info"): void {
   toastTimer = window.setTimeout(() => set({ toast: null }), kind === "error" ? 5000 : 2600);
 }
 
+const errorText = (e: unknown) => String((e as Error)?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+
 async function guard<T>(fn: () => Promise<T>): Promise<T | undefined> {
   try {
     return await fn();
   } catch (e) {
-    toast(String((e as Error)?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ""), "error");
+    toast(errorText(e), "error");
     return undefined;
   }
 }
@@ -157,6 +162,7 @@ export async function init(): Promise<void> {
       rightOpen: settings.session.rightOpen,
     });
     bumpIndex(true);
+    await restoreDrafts();
     for (const t of restored.tabs) if (t.kind === "code") void loadText(t.path);
     if (!restored.tabs.length) {
       const welcome = files.find((f) => f.path === "Atölye'ye hoş geldin.md");
@@ -549,19 +555,65 @@ export function updateNote(path: string, content: string): void {
 /** Kod ve .http dosyalari icin ayni otomatik kayit. */
 export const updateText = updateNote;
 
+const RETRY_MS = 5000;
+let retryTimer: number | undefined;
+
+/** Kaydedilemeyen dosyalar varken arka planda yeniden dener. */
+function scheduleRetry(): void {
+  window.clearTimeout(retryTimer);
+  retryTimer = undefined;
+  if (!Object.keys(get().saveErrors).length) return;
+  retryTimer = window.setTimeout(() => {
+    retryTimer = undefined;
+    void Promise.all(Object.keys(get().saveErrors).map(flush)).then(scheduleRetry);
+  }, RETRY_MS);
+}
+
 export async function flush(path: string): Promise<void> {
   window.clearTimeout(saveTimers.get(path));
   saveTimers.delete(path);
   const s = get();
   const map = isNote(path) ? s.notes : s.texts;
-  if (!s.dirty[path] || !(path in map)) return;
+  if (!s.dirty[path] || !(path in map)) {
+    // Yazilacak bir sey kalmadi (or. sekme kapandi); taslak yedegi diskte duruyor, bosuna yeniden deneme
+    if (path in s.saveErrors) {
+      set((st) => {
+        const saveErrors = { ...st.saveErrors };
+        delete saveErrors[path];
+        return { saveErrors };
+      });
+    }
+    return;
+  }
   const content = map[path];
-  const ok = await guard(async () => {
+  try {
     await api.vault.write(path, content);
-    return true;
-  });
+  } catch (e) {
+    // Kasaya yazilamadi: icerigi uygulama verisine yedekle ki kapatma/cokme durumunda da kaybolmasin
+    const message = errorText(e);
+    const firstFailure = !(path in get().saveErrors);
+    try {
+      await api.drafts.save(path, content);
+    } catch {
+      /* yedek de yazilamadi; icerik bellekte duruyor, yeniden denenecek */
+    }
+    set((st) => ({ saveErrors: { ...st.saveErrors, [path]: message } }));
+    if (firstFailure) toast(message, "error");
+    if (retryTimer === undefined) scheduleRetry();
+    return;
+  }
+  const hadError = path in get().saveErrors;
+  if (hadError) {
+    set((st) => {
+      const saveErrors = { ...st.saveErrors };
+      delete saveErrors[path];
+      return { saveErrors };
+    });
+    toast(`“${title(path)}” kaydedildi.`);
+  }
+  void api.drafts.clear(path).catch(() => undefined);
   const now = isNote(path) ? get().notes : get().texts;
-  if (ok && now[path] === content) {
+  if (now[path] === content) {
     const dirty = { ...get().dirty };
     delete dirty[path];
     set({ dirty });
@@ -570,6 +622,42 @@ export async function flush(path: string): Promise<void> {
 
 export async function flushAll(): Promise<void> {
   await Promise.all(Object.keys(get().dirty).map(flush));
+}
+
+/** Onceki oturumda kasaya yazilamamis notlari geri yukler ve kaydetmeyi yeniden dener. */
+async function restoreDrafts(): Promise<void> {
+  let drafts: { path: string; content: string; savedAt: number }[];
+  try {
+    drafts = await api.drafts.list();
+  } catch {
+    return;
+  }
+  let restored = 0;
+  for (const d of drafts) {
+    const note = isNote(d.path);
+    let current: string | undefined = note ? get().notes[d.path] : undefined;
+    if (current === undefined) {
+      try {
+        current = await api.vault.read(d.path);
+      } catch {
+        current = undefined; // dosya yok ya da okunamadi: taslagi yine de geri getir
+      }
+    }
+    if (current === d.content) {
+      void api.drafts.clear(d.path).catch(() => undefined);
+      continue;
+    }
+    set((st) =>
+      note
+        ? { notes: { ...st.notes, [d.path]: d.content }, dirty: { ...st.dirty, [d.path]: true } }
+        : { texts: { ...st.texts, [d.path]: d.content }, dirty: { ...st.dirty, [d.path]: true } },
+    );
+    restored++;
+  }
+  if (!restored) return;
+  bumpIndex(true);
+  toast(`${restored} kaydedilmemiş not yedekten geri yüklendi.`);
+  await flushAll();
 }
 
 /** Cizim gibi notes'ta tutulmayan metin dosyalarini yazar. */

@@ -55,6 +55,11 @@ type AtolyeApi = {
     openFolder(): Promise<void>;
     onChanged(cb: (paths: string[]) => void): () => void;
   };
+  drafts: {
+    save(rel: string, content: string): Promise<void>;
+    clear(rel: string): Promise<void>;
+    list(): Promise<{ path: string; content: string; savedAt: number }[]>;
+  };
   app: {
     openExternal(url: string): Promise<void>;
     version(): Promise<string>;

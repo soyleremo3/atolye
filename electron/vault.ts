@@ -111,8 +111,13 @@ export class Vault {
     await fs.mkdir(path.dirname(abs), { recursive: true });
     const tmp = `${abs}.${process.pid}.tmp`;
     this.mark(abs);
-    await fs.writeFile(tmp, content, "utf8");
-    await fs.rename(tmp, abs);
+    try {
+      await fs.writeFile(tmp, content, "utf8");
+      await fs.rename(tmp, abs);
+    } catch (e) {
+      await fs.rm(tmp, { force: true }).catch(() => undefined);
+      throw e;
+    }
   }
 
   async writeBinary(rel: string, data: Uint8Array): Promise<void> {

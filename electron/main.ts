@@ -3,7 +3,8 @@
  * Guvenlik: contextIsolation + sandbox, nodeIntegration kapali, tum dosya erisimi kasa ile sinirli,
  * uygulama sadece kendi "atolye://" protokolunden yuklenir, dis baglantilar varsayilan tarayicida acilir.
  */
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, shell, Menu, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, shell, Menu, type IpcMainInvokeEvent } from "electron";
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -63,11 +64,16 @@ app.setAppUserModelId("com.soyleremo3.atolye");
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  // Kisayola tekrar basilinca: pencere varsa one getir, yoksa (kapanmis/gizli kalmis) yeniden ac
   app.on("second-instance", () => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
+    if (!app.isReady()) return;
+    if (!win || win.isDestroyed()) {
+      createWindow();
+      return;
     }
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.focus();
   });
   app.whenReady().then(start);
 }
@@ -98,6 +104,63 @@ async function saveSettingsNow(): Promise<void> {
   await fs.rename(`${file}.tmp`, file);
 }
 
+// ------------------------------------------------------------------ taslak yedekleri
+// Kasaya yazilamayan (or. Windows "Denetimli klasor erisimi" engeli) notlar burada saklanir;
+// kayit basarili olunca silinir, uygulama acilinca geri yuklenir. Yazilanlar hicbir zaman kaybolmaz.
+const DRAFTS_DIR = () => path.join(app.getPath("userData"), "drafts");
+type Draft = { path: string; content: string; savedAt: number };
+
+function draftFile(rel: string): string {
+  return path.join(DRAFTS_DIR(), `${createHash("sha1").update(rel).digest("hex")}.json`);
+}
+
+async function saveDraft(rel: string, content: string): Promise<void> {
+  if (typeof rel !== "string" || typeof content !== "string") throw new Error("Geçersiz taslak");
+  const file = draftFile(rel);
+  await fs.mkdir(DRAFTS_DIR(), { recursive: true });
+  const draft: Draft = { path: rel, content, savedAt: Date.now() };
+  await fs.writeFile(`${file}.tmp`, JSON.stringify(draft), "utf8");
+  await fs.rename(`${file}.tmp`, file);
+}
+
+async function clearDraft(rel: string): Promise<void> {
+  if (typeof rel !== "string") return;
+  await fs.rm(draftFile(rel), { force: true });
+}
+
+async function listDrafts(): Promise<Draft[]> {
+  let names: string[];
+  try {
+    names = await fs.readdir(DRAFTS_DIR());
+  } catch {
+    return [];
+  }
+  const out: Draft[] = [];
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    try {
+      const d = JSON.parse(await fs.readFile(path.join(DRAFTS_DIR(), name), "utf8"));
+      if (typeof d?.path === "string" && typeof d?.content === "string") out.push({ path: d.path, content: d.content, savedAt: Number(d.savedAt) || 0 });
+    } catch {
+      /* bozuk taslak: yoksay */
+    }
+  }
+  return out;
+}
+
+/** Yazma hatasini kullanicinin anlayacagi bir mesaja cevirir. */
+function friendlyWriteError(e: unknown): Error {
+  const code = (e as NodeJS.ErrnoException)?.code;
+  if (code === "EPERM" || code === "EACCES") {
+    return new Error(
+      "Kaydedilemedi: Windows bu klasöre yazmayı engelliyor (Denetimli klasör erişimi). Yazdıkların yedekte güvende; izin verince kendiliğinden kaydedilir.",
+    );
+  }
+  if (code === "ENOSPC") return new Error("Kaydedilemedi: diskte yer kalmadı. Yazdıkların yedekte güvende.");
+  if (code === "EBUSY") return new Error("Kaydedilemedi: dosya başka bir programda açık. Birazdan yeniden denenecek.");
+  return e instanceof Error ? e : new Error(String(e));
+}
+
 // ------------------------------------------------------------------ kasa
 async function openVault(dir: string, seed = false): Promise<void> {
   vault?.unwatch();
@@ -124,12 +187,22 @@ function themeColors() {
   return dark ? { bg: "#1b1d23", fg: "#d4d7de" } : { bg: "#f3f3f5", fg: "#33363d" };
 }
 
+/** Kayitli konum hicbir ekranda gorunmuyorsa (ekran degisti vb.) konumu birak, pencere ortada acilsin. */
+function visiblePosition(w: Settings["window"]): { x?: number; y?: number } {
+  if (typeof w.x !== "number" || typeof w.y !== "number") return {};
+  const onScreen = screen.getAllDisplays().some(({ workArea: a }) => {
+    const visibleW = Math.min(w.x! + w.width, a.x + a.width) - Math.max(w.x!, a.x);
+    const visibleH = Math.min(w.y! + 38, a.y + a.height) - Math.max(w.y!, a.y);
+    return visibleW >= 200 && visibleH >= 30;
+  });
+  return onScreen ? { x: w.x, y: w.y } : {};
+}
+
 function createWindow(): void {
   const { bg, fg } = themeColors();
   const w = settings.window;
   win = new BrowserWindow({
-    x: w.x,
-    y: w.y,
+    ...visiblePosition(w),
     width: w.width,
     height: w.height,
     minWidth: 720,
@@ -151,7 +224,26 @@ function createWindow(): void {
   });
   win.webContents.session.setSpellCheckerLanguages(["tr", "en-US"]);
   if (w.maximized) win.maximize();
-  win.once("ready-to-show", () => win?.show());
+  // Pencere hicbir durumda gorunmez kalmasin: ready-to-show gelmezse 4 sn sonra yine de goster
+  const current = win;
+  const showNow = () => {
+    if (!current.isDestroyed() && !current.isVisible()) current.show();
+  };
+  const showFallback = setTimeout(showNow, 4000);
+  current.once("ready-to-show", () => {
+    clearTimeout(showFallback);
+    showNow();
+  });
+  current.on("closed", () => {
+    clearTimeout(showFallback);
+    if (win === current) win = null;
+  });
+  let crashes = 0;
+  current.webContents.on("render-process-gone", (_e, details) => {
+    if (details.reason === "clean-exit" || current.isDestroyed() || ++crashes > 3) return;
+    // Cokme olursa sayfayi yeniden yukle; kaydedilemeyen notlar taslak yedeginden geri gelir
+    current.webContents.reload();
+  });
 
   const remember = () => {
     if (!win || win.isMinimized()) return;
@@ -254,7 +346,16 @@ function registerIpc(): void {
   handle("vault:list", () => requireVault().list());
   handle("vault:readAll", () => requireVault().readAll());
   handle("vault:read", (rel: string) => requireVault().readText(rel));
-  handle("vault:write", (rel: string, content: string) => requireVault().writeText(rel, content));
+  handle("vault:write", async (rel: string, content: string) => {
+    try {
+      await requireVault().writeText(rel, content);
+    } catch (e) {
+      throw friendlyWriteError(e);
+    }
+  });
+  handle("drafts:save", (rel: string, content: string) => saveDraft(rel, content));
+  handle("drafts:clear", (rel: string) => clearDraft(rel));
+  handle("drafts:list", () => listDrafts());
   handle("vault:writeBinary", (rel: string, data: Uint8Array) => {
     if (!(data instanceof Uint8Array) || data.byteLength > 50 * 1024 * 1024) throw new Error("Geçersiz veri");
     return requireVault().writeBinary(rel, data);

@@ -50,6 +50,66 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
 
   // Oturum geri yukleme asamalari: eski bicimli oturum (tek sekme listesi) ve kaydedilmis bolmeler
   const phase = process.env.ATOLYE_SMOKE_PHASE || "full";
+  const draftsDir = path.join(app.getPath("userData"), "drafts");
+  const draftTexts = () => {
+    try {
+      return readdirSync(draftsDir)
+        .filter((n) => n.endsWith(".json"))
+        .map((n) => String(JSON.parse(readFileSync(path.join(draftsDir, n), "utf8")).content));
+    } catch {
+      return [] as string[];
+    }
+  };
+  const statusText = (): Promise<string> => js(`document.querySelector('.statusbar')?.textContent || ''`);
+
+  // Kasaya yazilamazsa (Denetimli klasor erisimi gibi): yedekle, uyar, izin gelince kendiliginden kaydet.
+  // Harness "Kilitli.md" dosyasini salt okunur yapar; yeniden adlandirma EPERM verir.
+  if (phase === "savefail") {
+    try {
+      await wait(2500);
+      await openQuick("Kilitli");
+      await key("End", ["control"]);
+      await type(" ENGELLI-YAZI");
+      await wait(2000);
+      const status = await statusText();
+      check("yazılamayınca uyarı gösterilir", /Kaydedilemedi/.test(status), status);
+      check("yazılamayınca taslak yedeklenir", draftTexts().some((t) => t.includes("ENGELLI-YAZI")), JSON.stringify(draftTexts()));
+      check("dosya değişmedi (gerçekten engellendi)", !read("Kilitli.md").includes("ENGELLI-YAZI"));
+      await shot("savefail-uyari");
+      // Engeli kaldir: yeniden deneme kendiliginden kaydetmeli
+      await fs.chmod(path.join(vault, "Kilitli.md"), 0o666);
+      await wait(7000);
+      check("engel kalkınca kendiliğinden kaydedilir", read("Kilitli.md").includes("ENGELLI-YAZI"), read("Kilitli.md").slice(-60));
+      check("kayıttan sonra taslak silinir", draftTexts().length === 0, JSON.stringify(draftTexts()));
+      check("durum çubuğu Kaydedildi gösterir", /Kaydedildi/.test(await statusText()), await statusText());
+      // Tekrar kilitle, yaz ve hemen kapat: yedek diskte kalmali (restore asamasi bunu acar)
+      await fs.chmod(path.join(vault, "Kilitli.md"), 0o444);
+      await key("End", ["control"]);
+      await type(" KAPANIRKEN-ENGELLI");
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    win.on("closed", () => {
+      check("kapanırken yazılamayan not yedekte kalır", draftTexts().some((t) => t.includes("KAPANIRKEN-ENGELLI")), JSON.stringify(draftTexts()));
+      writeFileSync(path.join(outDir, `log-${phase}.txt`), log.join("\n"), "utf8");
+    });
+    win.close();
+    return;
+  }
+  if (phase === "restore") {
+    try {
+      await wait(4000);
+      check("açılışta yedek geri yüklenir ve kaydedilir", read("Kilitli.md").includes("KAPANIRKEN-ENGELLI"), read("Kilitli.md").slice(-60));
+      check("geri yüklemeden sonra taslak silinir", draftTexts().length === 0, JSON.stringify(draftTexts()));
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    await fs.writeFile(path.join(outDir, `log-${phase}.txt`), log.join("\n"), "utf8");
+    win.close();
+    return;
+  }
   if (phase !== "full") {
     try {
       await wait(2500);
