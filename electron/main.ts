@@ -347,6 +347,13 @@ function createWindow(): void {
       openExternalSafe(url);
     }
   });
+  if (process.env.ATOLYE_SMOKE && process.env.ATOLYE_PERF_PROFILE === "start") {
+    // olcum icin: acilisin CPU profili (yalniz testte)
+    win.webContents.debugger.attach("1.3");
+    void win.webContents.debugger.sendCommand("Profiler.enable").then(() =>
+      win!.webContents.debugger.sendCommand("Profiler.setSamplingInterval", { interval: 100 })).then(() =>
+      win!.webContents.debugger.sendCommand("Profiler.start"));
+  }
   win.loadURL(`${SCHEME}://app/index.html`);
   if (process.env.ATOLYE_SMOKE) win.webContents.once("did-finish-load", () => void runSmoke(win!, process.env.ATOLYE_SMOKE!));
 }

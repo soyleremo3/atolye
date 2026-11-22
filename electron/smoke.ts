@@ -21,7 +21,7 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
   const wc = win.webContents;
   const log: string[] = [];
   wc.on("console-message", (e) => {
-    if (e.level === "error" && !/esm\.sh|subsetting|document is not defined/.test(e.message)) log.push(`[konsol hatası] ${e.message.slice(0, 300)}`);
+    if (e.level === "error" && !/esm\.sh|subsetting|document is not defined|window is not defined/.test(e.message)) log.push(`[konsol hatası] ${e.message.slice(0, 300)}`);
   });
   const shot = async (name: string) => {
     const img = await wc.capturePage();
@@ -179,7 +179,17 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
   // Obsidian benzeri ozellikler: yer imi, dosya gecmisi, ozellikler, baglantisiz anmalar, baglanti onizlemesi
   if (phase === "features") {
     try {
+      // KaTeX ve highlight.js acilista yuklenmez: arka plan yuklemesinden ONCE acilan notta yer tutucu cizilip
+      // parca gelince gercek formule / renkli koda donusmeli
+      await wait(900);
+      await fs.writeFile(path.join(vault, "Formul testi.md"), "# Formul testi\n\nSatir ici $E=mc^2$ formul.\n\n$$\n\\int_0^1 x\\,dx\n$$\n\n```js\nconst x = 42;\nfunction f() { return x; }\n```\n", "utf8");
+      await wait(700);
+      await openQuick("Formul testi");
+      if (await js(`!!document.querySelector('.editor .cm-content')`)) await key("E", ["control"]);
       await wait(2500);
+      const mathState = await js(`(() => { const p = document.querySelector('.preview-scroll .markdown'); return p ? { katex: p.querySelectorAll('.katex').length, pending: p.querySelectorAll('.math-pending, .hl-pending').length, kw: p.querySelectorAll('.hljs-keyword').length } : null; })()`);
+      check("özellik: formül (KaTeX) ve renkli kod sonradan yüklenip çizildi", !!mathState && mathState.katex >= 2 && mathState.pending === 0 && mathState.kw >= 1, JSON.stringify(mathState));
+      await shot("ft-00-formul-kod");
       await fs.writeFile(path.join(vault, "Ozellik testi.md"), "---\ndurum: taslak\netiketler: [fikir, is]\n---\n# Ozellik testi\n\nSistem mimarisi burada geciyor.\n", "utf8");
       await wait(1500);
       // yer imi
@@ -259,6 +269,128 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       log.push(`SMOKE HATA: ${String(e)}`);
     }
     await fs.writeFile(path.join(outDir, `log-${phase}.txt`), log.join("\n"), "utf8");
+    app.quit();
+    return;
+  }
+
+  // Performans olcumu: acilis, bellek, bosta CPU, uzun gorevler (>50 ms), yazma gecikmesi. perf.json'a yazar.
+  if (phase === "perf") {
+    const procStart = Date.now() - process.uptime() * 1000;
+    const loadedAt = Date.now() - procStart;
+    const res: Record<string, unknown> = { didFinishLoadMs: Math.round(loadedAt) };
+    try {
+      let ready = 0;
+      for (let i = 0; i < 400 && !ready; i++) {
+        if (await js(`document.querySelectorAll('.tree-row').length > 0 && !!document.querySelector('.editor, .markdown')`)) ready = Date.now() - procStart;
+        else await wait(25);
+      }
+      res.firstContentMs = Math.round(ready);
+      if (process.env.ATOLYE_PERF_PROFILE === "start") {
+        await wait(500);
+        const { profile } = (await wc.debugger.sendCommand("Profiler.stop")) as { profile: unknown };
+        await fs.writeFile(path.join(outDir, "startup.cpuprofile"), JSON.stringify(profile), "utf8");
+        wc.debugger.detach();
+      }
+      res.nav = await js(`(() => { const n = performance.getEntriesByType('navigation')[0]; return { domContentLoaded: Math.round(n.domContentLoadedEventEnd), load: Math.round(n.loadEventEnd) }; })()`);
+      res.scripts = await js(`performance.getEntriesByType('resource').filter(r => /\\.js$/.test(r.name)).map(r => r.name.split('/').pop() + ' ' + Math.round(r.encodedBodySize / 1024) + 'KB').join(', ')`);
+      await js(`window.__lt = 0; window.__ltN = 0; new PerformanceObserver(l => { for (const e of l.getEntries()) { window.__lt += e.duration; window.__ltN++; } }).observe({ type: 'longtask', buffered: true });`);
+      await wait(300);
+      res.startupLongTasks = await js(`({ ms: Math.round(window.__lt), n: window.__ltN })`);
+      const measure = async (name: string, ms = 5000) => {
+        await js(`window.__lt = 0; window.__ltN = 0;`);
+        app.getAppMetrics();
+        await wait(ms);
+        const m = app.getAppMetrics();
+        const cpu = m.reduce((s, p) => s + p.cpu.percentCPUUsage, 0);
+        const mem = m.reduce((s, p) => s + p.memory.workingSetSize, 0) / 1024;
+        const byType = Object.fromEntries(m.map((p) => [`${p.type}${p.name ? ":" + p.name : ""}#${p.pid}`, `${p.cpu.percentCPUUsage.toFixed(1)}% ${Math.round(p.memory.workingSetSize / 1024)}MB`]));
+        const heap = await js(`Math.round((performance.memory?.usedJSHeapSize || 0) / 1048576)`);
+        const lt = await js(`({ ms: Math.round(window.__lt), n: window.__ltN })`);
+        res[name] = { cpuPct: +cpu.toFixed(1), memMB: Math.round(mem), heapMB: heap, longTasks: lt, procs: byType };
+      };
+      await wait(1500);
+      await measure("idleNote");
+      // yazma: 300 karakter, her tus ayri olay; toplam sure ve uzun gorevler
+      if (!(await js(`!!document.querySelector('.editor .cm-content')`))) {
+        await key("E", ["control"]);
+        await wait(600);
+      }
+      res.editorFound = await js(`!!document.querySelector('.editor .cm-content')`);
+      await js(`document.querySelector('.editor .cm-content')?.focus()`);
+      await js(`window.__lt = 0; window.__ltN = 0;`);
+      const prof = process.env.ATOLYE_PERF_PROFILE === "1";
+      if (prof) {
+        wc.debugger.attach("1.3");
+        await wc.debugger.sendCommand("Profiler.enable");
+        await wc.debugger.sendCommand("Profiler.setSamplingInterval", { interval: 200 });
+        await wc.debugger.sendCommand("Profiler.start");
+      }
+      const t0 = Date.now();
+      const text = "Performans testi satiri, hizli yazma denemesi. ".repeat(6).slice(0, 300);
+      for (const ch of text) wc.sendInputEvent({ type: "char", keyCode: ch });
+      for (let i = 0; i < 200; i++) {
+        if (await js(`(document.querySelector('.cm-content')?.textContent || '').includes(${JSON.stringify(text.slice(-20))})`)) break;
+        await wait(20);
+      }
+      res.typing300 = { ms: Date.now() - t0, longTasks: await js(`({ ms: Math.round(window.__lt), n: window.__ltN })`) };
+      // yazma durunca (300 ms sonra) indeks yenilenir: o anki donma
+      await js(`window.__lt = 0; window.__ltN = 0;`);
+      await wait(1500);
+      res.afterTypingLongTasks = await js(`({ ms: Math.round(window.__lt), n: window.__ltN })`);
+      if (prof) {
+        const { profile } = (await wc.debugger.sendCommand("Profiler.stop")) as { profile: unknown };
+        await fs.writeFile(path.join(outDir, "typing.cpuprofile"), JSON.stringify(profile), "utf8");
+        wc.debugger.detach();
+      }
+      // karsilastirma: ayni yazma duz bir textarea'ya (olay gonderme hizinin tabani)
+      await js(`(() => { const t = document.createElement('textarea'); t.id = '__perfta'; t.style.cssText = 'position:fixed;left:0;top:0;width:200px;height:50px;z-index:9999'; document.body.appendChild(t); t.focus(); })()`);
+      const t1 = Date.now();
+      for (const ch of text) wc.sendInputEvent({ type: "char", keyCode: ch });
+      for (let i = 0; i < 200; i++) {
+        if (await js(`(document.getElementById('__perfta')?.value || '').length >= ${text.length}`)) break;
+        await wait(20);
+      }
+      res.typing300textarea = { ms: Date.now() - t1 };
+      await js(`document.getElementById('__perfta')?.remove()`);
+      await key("Z", ["control"]);
+      // 3B ofis acik
+      await key("J", ["control", "alt"]);
+      const tOff = Date.now();
+      for (let i = 0; i < 200; i++) {
+        if (await js(`(() => { const c = document.querySelector('.office-stage canvas'); return !!c && c.width > 0; })()`)) break;
+        await wait(25);
+      }
+      res.officeOpenMs = Date.now() - tOff;
+      await wait(2000);
+      await measure("officeVisible");
+      // ofis sekmesi arkada, not onde
+      await key("Tab", ["control"]);
+      await wait(1000);
+      await measure("officeInBackground");
+      // 30 sn gizli kalan ofis 3B sahneyi kapatir; bellek geri gelmeli
+      await wait(28000);
+      await measure("officeReleased", 4000);
+      res.officeCanvasAfterRelease = await js(`document.querySelectorAll('.office-stage canvas').length`);
+      // pencere simge durumunda
+      win.minimize();
+      await wait(800);
+      await measure("minimized");
+      win.restore();
+      await wait(800);
+      // terminal acik, bosta
+      await key("J", ["control"]);
+      await wait(3500);
+      await measure("terminalIdle");
+      await key("J", ["control"]);
+      // grafik gorunumu
+      await key("G", ["control", "shift"]);
+      await wait(2500);
+      await measure("graphOpen");
+    } catch (e) {
+      res.error = String(e);
+    }
+    await fs.writeFile(path.join(outDir, "perf.json"), JSON.stringify(res, null, 2), "utf8");
+    await fs.writeFile(path.join(outDir, "log.txt"), `PERF ${JSON.stringify(res)}\nyakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`, "utf8");
     app.quit();
     return;
   }
