@@ -387,7 +387,7 @@ export class DogOffice {
   private sun: THREE.DirectionalLight;
   private insets = { left: 300, right: 330 };
   private hovered: string | null = null;
-  private showAllLabels = false;
+  private showAllLabels = true;
 
   /** Yan paneller acilip kapaninca maketin sigacagi alan. */
   setInsets(left: number, right: number) {
@@ -790,8 +790,13 @@ export class DogOffice {
     const a = room.agent;
     const st = a.state;
     const mark = st === "working" ? '<i class="dot live"></i>' : st === "done" ? '<i class="ok">✓</i>' : st === "blocked" ? '<i class="warn">!</i>' : st === "failed" ? '<i class="bad">✗</i>' : "";
-    room.card.className = `office-card st-${st} pv-${a.provider}${this.selected === a.id ? " sel" : ""}`;
-    room.card.innerHTML = `<b>${escHtml(a.number)} · ${escHtml(a.label)}</b><span>${mark}${escHtml(a.line)}</span>`;
+    const quiet = st === "idle" || st === "planned";
+    room.card.className = `office-card st-${st} pv-${a.provider}${quiet ? " quiet" : ""}${this.selected === a.id ? " sel" : ""}`;
+    room.card.title = `${a.number} · ${a.label} — ${a.line}`;
+    // uyuyan/planli: tek satirlik kucuk etiket (ad + kisa durum); digerleri iki satir, renkli
+    room.card.innerHTML = quiet
+      ? `<b>${escHtml(a.number)} · ${escHtml(a.label)}</b><span>${st === "planned" ? "planlı" : "uyuyor"}</span>`
+      : `<b>${escHtml(a.number)} · ${escHtml(a.label)}</b><span>${mark}${escHtml(a.line)}</span>`;
   }
 
   private setApprovals(n: number) {

@@ -42,7 +42,7 @@ export function AgentsOffice3D({ snap, active, onOpen, onRun, onApprovals, onCha
   const compact = width < 1350;
   const [helloOpen, setHelloOpen] = useState<boolean | null>(null);
   const [sideOpen, setSideOpen] = useState<boolean | null>(null);
-  const [allLabels, setAllLabels] = useState(false);
+  const [allLabels, setAllLabels] = useState(true);
   const showHello = helloOpen ?? !compact;
   const showSide = sideOpen ?? width > 1050;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -160,7 +160,7 @@ export function AgentsOffice3D({ snap, active, onOpen, onRun, onApprovals, onCha
       <div className="office-tools">
         <button className={`office-tool glass${showHello ? " on" : ""}`} title="Özet" onClick={() => setHelloOpen(!showHello)}><Info size={15} /></button>
         <button className="office-tool glass" title="Tüm ofisi göster" onClick={() => office.current?.focus(null)}><Maximize2 size={15} /></button>
-        <button className={`office-tool glass${allLabels ? " on" : ""}`} title="Tüm etiketleri göster" onClick={() => setAllLabels(!allLabels)}><Tags size={15} /></button>
+        <button className={`office-tool glass${allLabels ? " on" : ""}`} title={allLabels ? "Uyuyanların etiketlerini gizle" : "Tüm etiketleri göster"} onClick={() => setAllLabels(!allLabels)}><Tags size={15} /></button>
         <button className={`office-tool glass${showSide ? " on" : ""}`} title="Onaylar ve akış paneli" onClick={() => setSideOpen(!showSide)}>{showSide ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}</button>
       </div>
 

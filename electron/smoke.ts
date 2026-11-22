@@ -78,12 +78,14 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       check("ajanlar: 3B köpek ofisi çizildi", canvas > 0, `canvas ${canvas}`);
       const visibleCards = `[...document.querySelectorAll('.office-card')].filter(c => c.isConnected && c.style.display !== 'none').length`;
       const quiet = await js(visibleCards);
-      check("ajanlar: başta yalnız önemli kartlar görünür", quiet > 0 && quiet < roles, `${quiet}/${roles}`);
+      check("ajanlar: başta her ajanın kartı görünür", quiet === roles, `${quiet}/${roles}`);
       await shot("ag-00-3b-ofis");
-      await js(`document.querySelector('.office-tool[title="Tüm etiketleri göster"]')?.click()`);
+      await js(`document.querySelector('.office-tool[title="Uyuyanların etiketlerini gizle"]')?.click()`);
       await wait(800);
       const officeCards = await js(visibleCards);
-      check("ajanlar: 'tüm etiketler' ile her ajanın kartı görünür", officeCards === roles, `${officeCards}/${roles}`);
+      check("ajanlar: düğmeyle uyuyanların etiketi gizlenir", officeCards > 0 && officeCards < roles, `${officeCards}/${roles}`);
+      await js(`document.querySelector('.office-tool[title="Tüm etiketleri göster"]')?.click()`);
+      await wait(600);
       // karta tiklayinca ayrinti paneli
       await js(`[...document.querySelectorAll('.office-card')].find(c => c.textContent.includes('Shoot'))?.click()`);
       await wait(600);

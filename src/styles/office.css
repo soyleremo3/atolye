@@ -141,3 +141,11 @@
 
 /* ayrinti paneli kartlarin ustunde */
 .office-detail { z-index: 4; }
+
+/* uyuyan/planli ajanlar: tek satir kucuk etiket, hepsi her zaman gorunur */
+.office-card.quiet { flex-direction: row; align-items: baseline; gap: 6px; padding: 3px 8px; border-radius: 12px; background: rgba(255, 252, 246, 0.78); box-shadow: 0 2px 8px rgba(110, 80, 50, 0.12); }
+.office-card.quiet b { font-size: 10.5px; font-weight: 600; }
+.office-card.quiet span { font-size: 9.5px; color: #a3978a; }
+.office-card.quiet.pv-claude b::before, .office-card.quiet.pv-google b::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.office-card.quiet.pv-claude b::before { background: #e39a4f; }
+.office-card.quiet.pv-google b::before { background: #8ea3c0; }
