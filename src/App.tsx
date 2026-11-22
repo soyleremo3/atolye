@@ -1,19 +1,20 @@
 import { useEffect } from "react";
 import {
   ArrowLeft, ArrowRight, Braces, CalendarDays, Command, Files, FolderOpen, Globe, Hash, KanbanSquare, Network, PanelLeft, PanelRight,
-  PenTool, Search, Settings, Wrench, Bot,
+  PenTool, Search, Settings, Wrench, Bot, NotebookPen, SquareTerminal,
 } from "lucide-react";
 import { api } from "./api";
 import { handleGlobalKey } from "./lib/commands";
 import { isBoardNote } from "./lib/paths";
 import {
-  AGENTS_PATH, HTTP_PATH, isDark, navigate, newDrawing, openBoard, openDaily, openGraph, openSearch, openView, SNIPPETS_PATH, toggleLeft, toggleRight,
+  AGENTS_PATH, ASSISTANT_PATH, HTTP_PATH, isDark, navigate, newDrawing, openBoard, openDaily, openGraph, openSearch, openView, SNIPPETS_PATH, toggleLeft, toggleRight,
   TOOLS_PATH, useStore,
 } from "./store";
 import { Overlays } from "./components/Overlays";
 import { RightPanel } from "./components/RightPanel";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
+import { toggleTerminal } from "./components/TerminalPanel";
 
 function TitleBar() {
   const vault = useStore((s) => s.vault);
@@ -64,6 +65,8 @@ function Ribbon() {
       <button className="icon-btn" title="HTTP istekleri (Ctrl+Alt+H)" onClick={() => openView(HTTP_PATH)}><Globe size={18} /></button>
       <button className="icon-btn" title="Geliştirici araçları (Ctrl+Alt+A)" onClick={() => openView(TOOLS_PATH)}><Wrench size={18} /></button>
       <AgentsButton />
+      <button className="icon-btn" title="Not Asistanı (Ctrl+Alt+K)" onClick={() => openView(ASSISTANT_PATH)}><NotebookPen size={18} /></button>
+      <button className="icon-btn" title="Terminal (Ctrl+J)" onClick={() => toggleTerminal()}><SquareTerminal size={18} /></button>
       <div className="ribbon-sep" />
       <button className="icon-btn" title="Grafik (Ctrl+Shift+G)" onClick={openGraph}><Network size={18} /></button>
       <button className="icon-btn" title="Günlük not (Ctrl+Alt+D)" onClick={() => void openDaily()}><CalendarDays size={18} /></button>

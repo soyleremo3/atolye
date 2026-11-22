@@ -62,3 +62,20 @@
 .term-host { flex: 1; min-height: 0; position: relative; padding: 4px 0 0 8px; }
 .term-view { position: absolute; inset: 4px 0 0 8px; }
 .term-empty { color: var(--faint); font-size: 13px; padding: 12px; }
+
+/* ---------------------------------------------------------------- not asistani */
+.asst { height: 100%; overflow: auto; display: grid; grid-template-columns: minmax(260px, 380px) 1fr; gap: 18px; padding: 18px; }
+.asst-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.asst-col h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--heading); }
+.asst-sub { margin-top: 10px !important; }
+.asst-quick, .asst-col textarea { resize: vertical; font: inherit; }
+.asst-list { display: flex; flex-direction: column; gap: 6px; overflow: auto; }
+.asst-note { text-align: left; border: 1px solid var(--border); background: var(--bg-2); color: var(--text); border-radius: 8px; padding: 8px 10px; cursor: pointer; font: inherit; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+.asst-note:hover { border-color: var(--accent-soft); }
+.asst-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.asst-row select { flex: 1; }
+.asst-ai { border-left: 1px solid var(--border); padding-left: 18px; }
+.asst-steps { font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+.asst-answer { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2); padding: 4px 14px 12px; }
+.asst-answer .markdown { max-width: none; margin: 0; padding: 8px 0; font-size: 14px; }
+@media (max-width: 900px) { .asst { grid-template-columns: 1fr; } .asst-ai { border-left: 0; padding-left: 0; } }

@@ -255,6 +255,60 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     return;
   }
 
+  // Terminal paneli ve Not Asistani
+  if (phase === "tools") {
+    try {
+      await wait(2500);
+      await key("J", ["control"]);
+      await wait(4500);
+      check("terminal: panel açıldı ve sekme var", await js(`!!document.querySelector('.term-panel') && document.querySelectorAll('.term-tab').length >= 1`));
+      await js(`document.querySelector('.term-view:not([style*="none"]) .xterm-helper-textarea')?.focus()`);
+      await type("echo ATOLYE-TERM-$((6*7))");
+      await key("Return");
+      await wait(2500);
+      const rows: string = await js(`[...document.querySelectorAll('.term-view .xterm-rows')].map(r => r.textContent).join(' ')`);
+      check("terminal: PowerShell komutu çalıştı", /ATOLYE-TERM-42/.test(rows), rows.slice(-160));
+      await js(`document.querySelector('.term-new button[title="Terminal türü seç"]')?.click()`);
+      await wait(400);
+      const menu: string = await js(`[...document.querySelectorAll('.term-menu button')].map(b => b.textContent + (b.disabled ? '(yok)' : '')).join(' | ')`);
+      check("terminal: profil menüsü (Claude Code, Antigravity, Codex)", /Claude Code/.test(menu) && /Antigravity/.test(menu) && /Codex/.test(menu), menu);
+      await shot("tl-01-terminal");
+      await js(`document.querySelector('.term-new button[title="Terminal türü seç"]')?.click()`);
+      // not asistani
+      await key("K", ["control", "alt"]);
+      await wait(1200);
+      await js(`document.querySelector('.asst-quick')?.focus()`);
+      await type("Kadikoy sahasinda cekim planlandi");
+      await js(`[...document.querySelectorAll('.asst .btn.primary')].find(b => b.textContent.includes('Kaydet'))?.click()`);
+      await wait(1500);
+      const d = new Date();
+      const p2 = (n: number) => String(n).padStart(2, "0");
+      const noteRel = `Notlarım/${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}.md`;
+      check("asistan: hızlı not kaydedildi", read(noteRel).includes("Kadikoy sahasinda cekim planlandi"), noteRel);
+      check("asistan: not listede görünüyor", await js(`document.querySelectorAll('.asst-note').length >= 1`));
+      await shot("tl-02-asistan");
+      if (process.env.ATOLYE_SMOKE_RUN === "1") {
+        await js(`(() => { const s = [...document.querySelectorAll('.asst select')][1]; const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, 'haiku'); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        await js(`document.querySelector('.asst-ai textarea')?.focus()`);
+        await type("Hangi sahada cekim planlandi? Tek kelimeyle yaz.");
+        await js(`[...document.querySelectorAll('.asst-ai .btn.primary')].find(b => b.textContent.includes('Sor'))?.click()`);
+        let ans = "";
+        for (let i = 0; i < 60 && !ans; i++) {
+          await wait(2000);
+          ans = await js(`document.querySelector('.asst-answer .markdown')?.textContent || document.querySelector('.asst-ai .ag-error')?.textContent || ''`);
+        }
+        check("asistan: model notu okuyup yanıtladı (Haiku)", /kad[ıi]k[öo]y/i.test(ans), ans.slice(0, 160));
+        await shot("tl-03-asistan-yanit");
+      }
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    await fs.writeFile(path.join(outDir, "log.txt"), log.join("\n"), "utf8");
+    app.quit();
+    return;
+  }
+
   if (phase === "savefail") {
     try {
       await wait(2500);

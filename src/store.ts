@@ -9,7 +9,7 @@ import {
 } from "./lib/paths";
 import { buildIndex, type VaultIndex } from "./lib/vaultIndex";
 
-export type TabKind = "note" | "drawing" | "image" | "graph" | "code" | "http" | "snippets" | "tools" | "agents" | "file";
+export type TabKind = "note" | "drawing" | "image" | "graph" | "code" | "http" | "snippets" | "tools" | "agents" | "assistant" | "file";
 export type Tab = { id: string; path: string; kind: TabKind; group: string };
 /** Yan yana duzenleyici bolmesi (VS Code'daki "editor group"). size: genislik orani. */
 export type Group = { id: string; active: string | null; size: number };
@@ -20,7 +20,8 @@ export const SNIPPETS_PATH = "::snippets";
 export const TOOLS_PATH = "::tools";
 export const HTTP_PATH = "::http";
 export const AGENTS_PATH = "::agents";
-const VIEW_PATHS: Record<string, TabKind> = { [GRAPH_PATH]: "graph", [SNIPPETS_PATH]: "snippets", [TOOLS_PATH]: "tools", [HTTP_PATH]: "http", [AGENTS_PATH]: "agents" };
+export const ASSISTANT_PATH = "::assistant";
+const VIEW_PATHS: Record<string, TabKind> = { [GRAPH_PATH]: "graph", [SNIPPETS_PATH]: "snippets", [TOOLS_PATH]: "tools", [HTTP_PATH]: "http", [AGENTS_PATH]: "agents", [ASSISTANT_PATH]: "assistant" };
 export const isViewPath = (p: string) => p in VIEW_PATHS;
 
 export type Dialog =

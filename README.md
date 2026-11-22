@@ -28,6 +28,11 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Terminal ve Not Asistanı (v1.5)
+
+- **Terminal** (`Ctrl+J` ya da şeritteki terminal simgesi): VS Code gibi alt panel, sekmeler. *+* yeni PowerShell; *▾* Claude Code, Antigravity (agy), Codex, Git Bash, Komut İstemi. Klasör seçimi: kasa, ajan reposu, uygulama reposu, kullanıcı klasörü. Panel gizlenince terminaller çalışmaya devam eder. Ctrl+C seçiliyse kopyalar, Ctrl+V yapıştırır.
+- **Not Asistanı** (`Ctrl+Alt+K`): hızlı not (bugünün `Notlarım/YYYY-AA-GG.md` dosyasına saatle eklenir), notlar listesi ve notlarına soru: Claude Haiku/Sonnet/Opus notları **yalnız okur** (Read/Glob/Grep), Türkçe yanıtlar ve kaynak notları yazar. *Özetle*, *Görevleri çıkar*, *Ajanlara gönder*.
+
 ## Görünüm ve oturum (v1.4)
 
 - **Renk teması:** Ayarlar → *Renk teması*: Kum (varsayılan, sıcak krem), Okyanus, Orman, Lavanta, Klasik; her biri açık ve koyu. *Vurgu rengi* ayrıca seçilebilir.

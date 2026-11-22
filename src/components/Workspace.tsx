@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   ArrowLeftToLine, ArrowRightToLine, BookOpen, Braces, CalendarDays, Code2, Columns2, Download, ExternalLink, FilePlus, FileText, Globe,
-  Image as ImageIcon, KanbanSquare, MoreHorizontal, Network, PenLine, PenTool, Pencil, SquareSplitHorizontal, Trash2, Wrench, X, Bot } from "lucide-react";
+  Image as ImageIcon, KanbanSquare, MoreHorizontal, Network, PenLine, PenTool, Pencil, SquareSplitHorizontal, Trash2, Wrench, X, Bot, NotebookPen } from "lucide-react";
 import { api, vaultUrl, type ViewMode } from "../api";
 import { exportNote } from "../lib/exporter";
 import { basename, dirname, isBoardNote, title } from "../lib/paths";
@@ -15,6 +15,7 @@ import { HttpView } from "./HttpView";
 import { CodeView, SnippetsView } from "./SnippetsView";
 import { ToolsView } from "./ToolsView";
 import { AgentsView } from "./AgentsView";
+import { AssistantView } from "./AssistantView";
 import { TerminalPanel } from "./TerminalPanel";
 import { Editor } from "./Editor";
 import { GraphView } from "./GraphView";
@@ -38,10 +39,11 @@ function tabIcon(tab: Tab) {
   if (tab.kind === "snippets") return <Braces size={14} />;
   if (tab.kind === "tools") return <Wrench size={14} />;
   if (tab.kind === "agents") return <Bot size={14} />;
+  if (tab.kind === "assistant") return <NotebookPen size={14} />;
   return <FileText size={14} />;
 }
 
-const VIEW_TITLES: Record<string, string> = { graph: "Grafik", snippets: "Kod parçaları", tools: "Araçlar", http: "HTTP istekleri", agents: "Ajanlar" };
+const VIEW_TITLES: Record<string, string> = { graph: "Grafik", snippets: "Kod parçaları", tools: "Araçlar", http: "HTTP istekleri", agents: "Ajanlar", assistant: "Not Asistanı" };
 const tabTitle = (t: Tab) => (isViewPath(t.path) ? VIEW_TITLES[t.kind] : t.kind === "note" ? title(t.path) : basename(t.path));
 const tabOrder = (t: Tab) => Number(t.id.slice(1));
 const template = (sizes: number[]) => sizes.map((s) => `minmax(0, ${s}fr)`).join(" 1px ");
@@ -501,6 +503,7 @@ export function Workspace() {
                 {t.kind === "tools" && <ToolsView />}
                 {t.kind === "http" && <HttpView />}
                 {t.kind === "agents" && <AgentsView active={visible} />}
+                {t.kind === "assistant" && <AssistantView />}
               </div>
             );
           })}
