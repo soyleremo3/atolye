@@ -3,7 +3,7 @@ import { api } from "../api";
 import {
   activeTab, changeVault, closeTab, closeTabs, cycleTab, equalizeGroups, focusGroupAt, moveTabToSide, splitTab, flushAll, HTTP_PATH, modeOf, navigate, newBoard, newDrawing, newFolder, newNote, newRequestFile,
   newSnippet, openBoard, openDaily, openGraph, openSearch, openView, renamePath, deletePath, setMode, SNIPPETS_PATH, toggleLeft,
-  toggleRight, TOOLS_PATH, AGENTS_PATH, updateSettings, useStore,
+  toggleRight, TOOLS_PATH, AGENTS_PATH, updateSettings, useStore, toggleBookmark, openHistory,
 } from "../store";
 import { exportNote } from "./exporter";
 
@@ -32,6 +32,8 @@ export const COMMANDS: Command[] = [
   { id: "board.new", title: "Yeni görev panosu", keys: "Ctrl+Alt+N", run: () => newBoard() },
   { id: "http", title: "HTTP istekleri", keys: "Ctrl+Alt+H", run: () => openView(HTTP_PATH) },
   { id: "http.new", title: "Yeni HTTP istek dosyası", run: newRequestFile },
+  { id: "bookmark", title: "Yer imine ekle / çıkar", keys: "Ctrl+Alt+M", run: () => toggleBookmark() },
+  { id: "history", title: "Dosya geçmişi (eski sürümler)", keys: "Ctrl+Alt+Y", run: () => openHistory() },
   { id: "agents", title: "Ajanlar (ofis, onaylar, pano, raporlar)", keys: "Ctrl+Alt+J", run: () => openView(AGENTS_PATH) },
   { id: "tools", title: "Geliştirici araçları (JSON, Regex, JWT, Base64…)", keys: "Ctrl+Alt+A", run: () => openView(TOOLS_PATH) },
   { id: "daily.open", title: "Bugünün günlük notu", keys: "Ctrl+Alt+D", run: () => void openDaily() },

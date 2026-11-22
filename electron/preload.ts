@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld("atolye", {
     openFolder: () => invoke("vault:openFolder"),
     onChanged: (cb: (paths: string[]) => void) => on("vault:changed", cb),
   },
+  history: {
+    list: (rel: string) => invoke("history:list", rel),
+    read: (rel: string, id: string) => invoke("history:read", rel, id),
+  },
   drafts: {
     save: (rel: string, content: string) => invoke("drafts:save", rel, content),
     clear: (rel: string) => invoke("drafts:clear", rel),

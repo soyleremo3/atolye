@@ -1,0 +1,44 @@
+/* ---------------------------------------------------------------- yer imleri */
+.bookmarks { padding: 2px 6px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.bookmarks-head {
+  display: flex; align-items: center; gap: 5px; width: 100%; border: 0; background: none; color: var(--muted);
+  font: inherit; font-size: 12px; font-weight: 600; padding: 4px 6px; cursor: pointer; border-radius: 6px;
+}
+.bookmarks-head:hover { background: var(--bg-hover); color: var(--text); }
+.bookmarks-head .count { margin-left: auto; font-weight: 400; color: var(--faint); }
+.bookmark-row { position: relative; padding-left: 22px; }
+.bookmark-row .bookmark-remove { width: 22px; height: 22px; margin-left: auto; opacity: 0; }
+.bookmark-row:hover .bookmark-remove { opacity: 1; }
+
+/* ---------------------------------------------------------------- baglanti onizlemesi */
+.hover-preview {
+  position: fixed; z-index: 60; width: 430px; max-height: 320px; overflow: auto; background: var(--bg);
+  border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35); pointer-events: none;
+}
+.hover-preview-title { padding: 8px 14px; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--heading); font-size: 13px; }
+.hover-preview .markdown { max-width: none; margin: 0; padding: 10px 14px 14px; font-size: 13px; line-height: 1.55; }
+.hover-preview .markdown h1 { font-size: 1.3em; margin-top: 0.2em; }
+
+/* ---------------------------------------------------------------- dosya gecmisi */
+.history-dialog { width: min(980px, 94vw); max-width: none; }
+.history-body { display: grid; grid-template-columns: 240px 1fr; gap: 12px; height: min(60vh, 560px); }
+.history-list { overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.history-row { text-align: left; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; padding: 7px 9px; border-radius: 6px; cursor: pointer; }
+.history-row:hover { background: var(--bg-hover); }
+.history-row.on { background: var(--bg-active); color: var(--heading); }
+.history-preview { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.history-preview .markdown { max-width: none; margin: 0; padding: 12px 18px 20px; font-size: 14px; }
+.history-preview pre { margin: 0; padding: 12px; white-space: pre-wrap; font-family: var(--mono); font-size: 12px; }
+.history-change { padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); position: sticky; top: 0; background: var(--bg); }
+.history-change .add { color: #22c55e; font-weight: 600; }
+.history-change .del { color: #ef4444; font-weight: 600; }
+
+/* ---------------------------------------------------------------- ozellikler */
+.props { padding: 6px 10px; display: flex; flex-direction: column; gap: 6px; }
+.prop-row { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: baseline; font-size: 13px; }
+.prop-key { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-vals { display: flex; flex-wrap: wrap; gap: 4px; }
+.prop-chip { background: var(--bg-active); border-radius: 10px; padding: 1px 8px; font-size: 12px; color: var(--text); }
+
+/* sag panel sekmeleri tek satir */
+.sidebar.right .seg button { white-space: nowrap; font-size: 12px; }

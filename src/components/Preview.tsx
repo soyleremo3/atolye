@@ -1,8 +1,9 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, type MouseEvent } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { api } from "../api";
 import { renderDrawings, renderMermaid } from "../lib/diagrams";
 import { renderNote } from "../lib/render";
-import { followLink, isDark, openPath, openSearch, toast, updateNote, useStore } from "../store";
+import { followLink, getIndex, isDark, openPath, openSearch, toast, updateNote, useStore } from "../store";
+import { title as noteTitle } from "../lib/paths";
 
 type Props = { path: string; content: string };
 
@@ -73,9 +74,35 @@ export function Preview({ path, content }: Props) {
     }
   };
 
+  // Baglanti onizlemesi: [[not]] baglantisinin ustunde kisa bekleyince notun basini gosterir
+  const [hover, setHover] = useState<{ path: string; x: number; y: number } | null>(null);
+  const timer = useRef<number | null>(null);
+  const onOver = (e: MouseEvent<HTMLDivElement>) => {
+    const link = (e.target as HTMLElement).closest<HTMLElement>("a.wikilink");
+    if (timer.current) window.clearTimeout(timer.current);
+    if (!link) return setHover(null);
+    const target = getIndex().resolver.resolve(link.dataset.href || "");
+    if (!target || target === path) return;
+    const r = link.getBoundingClientRect();
+    timer.current = window.setTimeout(() => setHover({ path: target, x: Math.min(r.left, window.innerWidth - 440), y: r.bottom + 6 }), 350);
+  };
+  const hoverHtml = useMemo(() => {
+    if (!hover) return "";
+    const src = useStore.getState().notes[hover.path] ?? "";
+    return renderNote(hover.path, src.length > 4000 ? `${src.slice(0, 4000)}
+
+…` : src);
+  }, [hover]);
+
   return (
-    <div className="preview-scroll">
+    <div className="preview-scroll" onMouseOver={onOver} onMouseLeave={() => { if (timer.current) window.clearTimeout(timer.current); setHover(null); }}>
       <article key={dark ? "dark" : "light"} ref={ref} className="markdown" onClick={onClick} onAuxClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
+      {hover && (
+        <div className="hover-preview" style={{ left: Math.max(8, hover.x), top: Math.min(hover.y, window.innerHeight - 220) }}>
+          <div className="hover-preview-title">{noteTitle(hover.path)}</div>
+          <article className="markdown" dangerouslySetInnerHTML={{ __html: hoverHtml }} />
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import "./styles/app.css";
 import "./styles/markdown.css";
 import "./styles/atolye.css";
 import "./styles/agents.css";
+import "./styles/features.css";
 import { App } from "./App";
 import { init } from "./store";
 

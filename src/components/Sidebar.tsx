@@ -1,12 +1,12 @@
 import { memo, useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import {
   ChevronDown, ChevronRight, ChevronsDownUp, Code2, File, FilePlus, FileText, Folder, FolderOpen, FolderPlus, Globe,
-  Image as ImageIcon, KanbanSquare, PenTool, Pencil, ExternalLink, Trash2, SquareArrowOutUpRight, Columns2,
+  Image as ImageIcon, KanbanSquare, PenTool, Pencil, ExternalLink, Trash2, SquareArrowOutUpRight, Columns2, Bookmark, BookmarkMinus, History,
 } from "lucide-react";
 import { api, type FileEntry } from "../api";
 import { basename, isCode, isDrawing, isHttp, isImage, isNote, join, title } from "../lib/paths";
 import { searchNotes } from "../lib/vaultIndex";
-import { deletePath, movePath, newBoard, newDrawing, newFolder, newNote, openPath, openSearch, renamePath, useIndex, useStore } from "../store";
+import { deletePath, isBookmarked, movePath, newBoard, newDrawing, newFolder, newNote, openHistory, openPath, openSearch, renamePath, toggleBookmark, useIndex, useStore } from "../store";
 import { openMenu, type MenuItem } from "./Overlays";
 
 type Node = { entry: FileEntry; children: Node[] };
@@ -54,6 +54,8 @@ function menuFor(e: FileEntry): MenuItem[] {
     items.push(
       { label: "Yeni sekmede aç", icon: <SquareArrowOutUpRight size={14} />, run: () => void openPath(e.path, { newTab: true }) },
       { label: "Yanda aç (Alt+tık)", icon: <Columns2 size={14} />, run: () => void openPath(e.path, { side: true }) },
+      { label: isBookmarked(e.path) ? "Yer iminden çıkar" : "Yer imlerine ekle", icon: <Bookmark size={14} />, run: () => toggleBookmark(e.path) },
+      { label: "Dosya geçmişi", icon: <History size={14} />, run: () => openHistory(e.path) },
       "sep",
     );
   }
@@ -121,6 +123,29 @@ const TreeRow = memo(function TreeRow({ node, depth, activePath }: { node: Node;
   );
 });
 
+function Bookmarks() {
+  const marks = useStore((s) => s.settings?.bookmarks ?? []);
+  const files = useStore((s) => s.files);
+  const [open, setOpen] = useState(true);
+  const existing = marks.filter((p) => files.some((f) => f.path === p));
+  if (!existing.length) return null;
+  return (
+    <div className="bookmarks">
+      <button className="bookmarks-head" onClick={() => setOpen(!open)}>
+        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />} <Bookmark size={13} /> Yer imleri <span className="count">{existing.length}</span>
+      </button>
+      {open &&
+        existing.map((p) => (
+          <div key={p} className="tree-row bookmark-row" onClick={(ev) => void openPath(p, { newTab: ev.ctrlKey })} title={p}>
+            <span className="tree-icon"><FileText size={14} /></span>
+            <span className="tree-name">{isNote(p) ? title(p) : basename(p)}</span>
+            <button className="icon-btn bookmark-remove" title="Yer iminden çıkar" onClick={(ev) => { ev.stopPropagation(); toggleBookmark(p); }}><BookmarkMinus size={13} /></button>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 function FileTree() {
   const files = useStore((s) => s.files);
   const activePath = useStore((s) => s.tabs.find((t) => t.id === s.active)?.path ?? null);
@@ -138,6 +163,7 @@ function FileTree() {
           <button className="icon-btn" title="Tümünü daralt" onClick={() => useStore.setState({ expanded: {} })}><ChevronsDownUp size={16} /></button>
         </div>
       </div>
+      <Bookmarks />
       <div
         className={`tree${over ? " drop" : ""}`}
         onDragOver={(ev) => {

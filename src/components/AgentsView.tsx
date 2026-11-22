@@ -9,7 +9,7 @@ import {
   ScrollText, ShieldCheck, Square, X,
 } from "lucide-react";
 import { api, type AgentItem, type AgentRole, type AgentRun, type AgentRunEvent, type AgentsConfig, type AgentsSnapshot } from "../api";
-import { md, stripFrontmatter } from "../lib/markdown";
+import { md, stripFrontmatter, type RenderEnv } from "../lib/markdown";
 import { isDark, toast, useStore } from "../store";
 import { AgentsOffice3D } from "./AgentsOffice3D";
 
@@ -27,7 +27,9 @@ const STATE_LABEL: Record<string, string> = { idle: "Uyuyor", working: "Çalış
 const SYNC_EVERY_MS = 5 * 60_000;
 const REFRESH_EVERY_MS = 20_000;
 
-const html = (src: string) => md.render(stripFrontmatter(src));
+// Ajan dosyalari kasanin disinda: [[baglanti]] cozulmez, duz metin kalir
+const AGENT_ENV: RenderEnv = { notePath: "", depth: 0, resolve: () => null, renderNote: () => "" };
+const html = (src: string) => md.render(stripFrontmatter(src), { ...AGENT_ENV });
 const ago = (iso: string | null | undefined) => {
   if (!iso) return "hiç çalışmadı";
   const ms = Date.now() - Date.parse(iso);

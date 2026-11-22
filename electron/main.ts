@@ -36,6 +36,8 @@ type Settings = {
   };
   window: { x?: number; y?: number; width: number; height: number; maximized: boolean };
   agents?: agents.AgentsConfig;
+  /** Yer imleri: kasa icindeki yollar. */
+  bookmarks: string[];
 };
 
 const DEFAULTS: Settings = {
@@ -48,6 +50,7 @@ const DEFAULTS: Settings = {
   defaultMode: "edit",
   session: { tabs: [], active: null, leftOpen: true, rightOpen: true },
   window: { width: 1280, height: 820, maximized: false },
+  bookmarks: [],
 };
 
 let settings: Settings = DEFAULTS;
@@ -104,6 +107,54 @@ async function saveSettingsNow(): Promise<void> {
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(`${file}.tmp`, JSON.stringify(settings, null, 2), "utf8");
   await fs.rename(`${file}.tmp`, file);
+}
+
+// ------------------------------------------------------------------ dosya gecmisi
+// Bir not degisince eski hali (en cok 5 dakikada bir) userData/history altina saklanir; dosya basina son 30 surum.
+const HISTORY_DIR = () => path.join(app.getPath("userData"), "history");
+const HISTORY_EVERY_MS = 5 * 60_000;
+const HISTORY_KEEP = 30;
+const lastSnapshot = new Map<string, number>();
+type Snapshot = { path: string; savedAt: number; content: string };
+
+function historyDir(rel: string): string {
+  return path.join(HISTORY_DIR(), createHash("sha1").update(rel).digest("hex"));
+}
+
+async function snapshotBefore(rel: string, next: string): Promise<void> {
+  if (typeof rel !== "string" || !/\.(md|markdown|txt|http|excalidraw)$/i.test(rel)) return;
+  const now = Date.now();
+  if (now - (lastSnapshot.get(rel) ?? 0) < HISTORY_EVERY_MS) return;
+  let prev: string;
+  try {
+    prev = await requireVault().readText(rel);
+  } catch {
+    return; // yeni dosya: saklanacak eski hal yok
+  }
+  if (prev === next || !prev.trim()) return;
+  lastSnapshot.set(rel, now);
+  const dir = historyDir(rel);
+  await fs.mkdir(dir, { recursive: true });
+  const snap: Snapshot = { path: rel, savedAt: now, content: prev };
+  await fs.writeFile(path.join(dir, `${now}.json`), JSON.stringify(snap), "utf8");
+  const names = (await fs.readdir(dir)).filter((n) => n.endsWith(".json")).sort();
+  for (const old of names.slice(0, Math.max(0, names.length - HISTORY_KEEP))) await fs.rm(path.join(dir, old), { force: true });
+}
+
+async function listHistory(rel: string): Promise<{ id: string; savedAt: number; size: number }[]> {
+  try {
+    const dir = historyDir(String(rel));
+    const names = (await fs.readdir(dir)).filter((n) => /^\d+\.json$/.test(n)).sort().reverse();
+    return Promise.all(names.map(async (n) => ({ id: n.replace(/\.json$/, ""), savedAt: Number(n.replace(/\.json$/, "")), size: (await fs.stat(path.join(dir, n))).size })));
+  } catch {
+    return [];
+  }
+}
+
+async function readHistory(rel: string, id: string): Promise<string> {
+  if (!/^\d+$/.test(String(id))) throw new Error("Geçersiz sürüm");
+  const snap = JSON.parse(await fs.readFile(path.join(historyDir(String(rel)), `${id}.json`), "utf8")) as Snapshot;
+  return snap.content;
 }
 
 // ------------------------------------------------------------------ taslak yedekleri
@@ -322,7 +373,7 @@ function handle(channel: string, fn: Handler): void {
 function registerIpc(): void {
   handle("settings:get", () => ({ ...settings, dark: nativeTheme.shouldUseDarkColors }));
   handle("settings:set", (patch: Partial<Settings>) => {
-    const allowed: (keyof Settings)[] = ["theme", "fontSize", "editorFont", "readableWidth", "spellcheck", "defaultMode", "session"];
+    const allowed: (keyof Settings)[] = ["theme", "fontSize", "editorFont", "readableWidth", "spellcheck", "defaultMode", "session", "bookmarks"];
     for (const key of allowed) if (patch && key in patch) (settings as any)[key] = (patch as any)[key];
     if (patch?.theme) {
       nativeTheme.themeSource = settings.theme;
@@ -350,11 +401,14 @@ function registerIpc(): void {
   handle("vault:read", (rel: string) => requireVault().readText(rel));
   handle("vault:write", async (rel: string, content: string) => {
     try {
+      await snapshotBefore(rel, content).catch(() => undefined);
       await requireVault().writeText(rel, content);
     } catch (e) {
       throw friendlyWriteError(e);
     }
   });
+  handle("history:list", (rel: string) => listHistory(rel));
+  handle("history:read", (rel: string, id: string) => readHistory(rel, id));
   handle("drafts:save", (rel: string, content: string) => saveDraft(rel, content));
   handle("drafts:clear", (rel: string) => clearDraft(rel));
   handle("drafts:list", () => listDrafts());

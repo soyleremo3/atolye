@@ -27,6 +27,7 @@ export type Dialog =
   | { type: "prompt"; title: string; label?: string; value: string; okText?: string; selectAll?: boolean; onSubmit: (v: string) => void | Promise<void> }
   | { type: "confirm"; title: string; message: string; okText?: string; danger?: boolean; onConfirm: () => void | Promise<void> }
   | { type: "settings" }
+  | { type: "history"; path: string }
   | null;
 
 export type Overlay = null | "commands" | "switcher" | "templates";
@@ -52,7 +53,7 @@ type State = {
   leftOpen: boolean;
   rightOpen: boolean;
   leftView: "files" | "search" | "tags";
-  rightView: "outline" | "links";
+  rightView: "outline" | "links" | "props";
   overlay: Overlay;
   dialog: Dialog;
   toast: { id: number; text: string; kind: "info" | "error" } | null;
@@ -984,6 +985,26 @@ export function toggleLeft(view?: State["leftView"]): void {
 export function toggleRight(): void {
   set((s) => ({ rightOpen: !s.rightOpen }));
   void saveSession();
+}
+
+// ------------------------------------------------------------------ yer imleri ve dosya gecmisi
+export function isBookmarked(path: string): boolean {
+  return (get().settings?.bookmarks ?? []).includes(path);
+}
+
+export function toggleBookmark(path?: string): void {
+  const p = path ?? activeTab()?.path;
+  if (!p || isViewPath(p)) return;
+  const cur = get().settings?.bookmarks ?? [];
+  const on = cur.includes(p);
+  void updateSettings({ bookmarks: on ? cur.filter((x) => x !== p) : [...cur, p] });
+  toast(on ? "Yer iminden çıkarıldı" : "Yer imlerine eklendi");
+}
+
+export function openHistory(path?: string): void {
+  const p = path ?? activeTab()?.path;
+  if (!p || isViewPath(p)) return toast("Önce bir dosya aç", "error");
+  set({ dialog: { type: "history", path: p } });
 }
 
 export async function updateSettings(patch: Partial<Settings>): Promise<void> {

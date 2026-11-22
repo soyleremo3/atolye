@@ -144,6 +144,60 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     return;
   }
 
+  // Obsidian benzeri ozellikler: yer imi, dosya gecmisi, ozellikler, baglantisiz anmalar, baglanti onizlemesi
+  if (phase === "features") {
+    try {
+      await wait(2500);
+      await fs.writeFile(path.join(vault, "Ozellik testi.md"), "---\ndurum: taslak\netiketler: [fikir, is]\n---\n# Ozellik testi\n\nSistem mimarisi burada geciyor.\n", "utf8");
+      await wait(1500);
+      // yer imi
+      await openQuick("Sistem mimarisi");
+      await key("M", ["control", "alt"]);
+      await wait(800);
+      check("özellik: yer imi kenar çubuğunda", await js(`[...document.querySelectorAll('.bookmark-row')].some(r => r.textContent.includes('Sistem mimarisi'))`));
+      await shot("ft-01-yer-imi");
+      // dosya gecmisi: degistir, kaydedilsin, gecmisi ac
+      await key("End", ["control"]);
+      await type(" GECMIS1");
+      await wait(2500);
+      await key("Y", ["control", "alt"]);
+      await wait(1200);
+      const rows = await js(`document.querySelectorAll('.history-row').length`);
+      check("özellik: dosya geçmişinde eski sürüm", rows >= 1, `${rows} sürüm`);
+      await shot("ft-02-gecmis");
+      await js(`[...document.querySelectorAll('.dialog .btn')].find(b => b.textContent.includes('Kapat'))?.click()`);
+      await wait(400);
+      // baglantisiz anmalar (Sistem mimarisi acik): sag panel baglantilar
+      if (!(await js(`!!document.querySelector('.sidebar.right')`))) await key("R", ["control", "shift"]);
+      await wait(400);
+      await js(`[...document.querySelectorAll('.sidebar.right .seg button')].find(b => b.textContent.includes('Bağlantılar'))?.click()`);
+      await wait(600);
+      check("özellik: bağlantısız anmalar", await js(`[...document.querySelectorAll('.sidebar.right .backlink-title')].some(b => b.textContent.includes('Ozellik testi'))`));
+      await shot("ft-03-anmalar");
+      // ozellikler
+      await openQuick("Ozellik testi");
+      await js(`[...document.querySelectorAll('.sidebar.right .seg button')].find(b => b.textContent.includes('Özellikler'))?.click()`);
+      await wait(600);
+      const props = await js(`document.querySelectorAll('.prop-row').length`);
+      check("özellik: özellikler paneli", props === 2, `${props} satır`);
+      await shot("ft-04-ozellikler");
+      // baglanti onizlemesi: hos geldin notunu okuma modunda ac, baglantinin ustune gel
+      await openQuick("hoş geldin");
+      await key("E", ["control"]);
+      await wait(900);
+      await js(`(() => { const a = document.querySelector('.preview-scroll a.wikilink'); a && a.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); })()`);
+      await wait(900);
+      check("özellik: bağlantı önizlemesi", await js(`!!document.querySelector('.hover-preview .markdown')`));
+      await shot("ft-05-onizleme");
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    await fs.writeFile(path.join(outDir, "log.txt"), log.join("\n"), "utf8");
+    app.quit();
+    return;
+  }
+
   if (phase === "savefail") {
     try {
       await wait(2500);

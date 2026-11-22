@@ -47,6 +47,7 @@ export type Settings = {
     rightOpen: boolean;
   };
   dark: boolean;
+  bookmarks?: string[];
 };
 
 type AtolyeApi = {
@@ -70,6 +71,10 @@ type AtolyeApi = {
     reveal(rel: string): Promise<void>;
     openFolder(): Promise<void>;
     onChanged(cb: (paths: string[]) => void): () => void;
+  };
+  history: {
+    list(rel: string): Promise<{ id: string; savedAt: number; size: number }[]>;
+    read(rel: string, id: string): Promise<string>;
   };
   drafts: {
     save(rel: string, content: string): Promise<void>;

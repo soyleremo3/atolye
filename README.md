@@ -28,9 +28,19 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Obsidian'dan gelenler (v1.2)
+
+| Özellik | Nasıl |
+|---|---|
+| Yer imleri | Dosyaya sağ tık → *Yer imlerine ekle* ya da `Ctrl+Alt+M`; dosya ağacının üstünde görünür |
+| Bağlantı önizlemesi | Okuma modunda `[[bağlantı]]`ın üstünde bekle: notun başı açılır |
+| Bağlantısız anmalar | Sağ panel → Bağlantılar: adı geçen ama bağlantı verilmemiş notlar |
+| Özellikler | Sağ panel → Özellikler: notun başındaki `---` bloğu tablo olarak |
+| Dosya geçmişi | `Ctrl+Alt+Y` ya da sağ tık → *Dosya geçmişi*: son 30 sürüm (en çok 5 dakikada bir), önizle ve geri yükle |
+
 ## 🤖 Ajanlar (`Ctrl+Alt+J`)
 
-Basketball APP ajan sistemini (gizli `soyleremo3/basketball-agents` reposu) tek ekranda gösterir:
+Basketball APP ajan sistemini (gizli `soyleremo3/basketball-agents` reposu) tek ekranda gösterir. **3B ofis:** her ekip bir oda, her ajan masasında oturan bir köpek (uyuyor / çalışıyor / bitti / takıldı / hata); köpeğe tıkla → ayrıntı.
 
 | Sekme | Ne yapar |
 |---|---|

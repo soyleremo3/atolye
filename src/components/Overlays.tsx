@@ -6,7 +6,9 @@ import { api } from "../api";
 import { COMMANDS } from "../lib/commands";
 import { fuzzyFilter } from "../lib/fuzzy";
 import { dirname, isCode, isDrawing, isHttp, isImage, isNote, join, sanitizeName, title } from "../lib/paths";
-import { changeVault, createNote, currentFolder, newFromTemplate, openPath, templates, updateSettings, useStore } from "../store";
+import { changeVault, createNote, currentFolder, newFromTemplate, openPath, templates, toast, updateNote, updateSettings, useStore } from "../store";
+import { renderNote } from "../lib/render";
+import { diffLines } from "diff";
 
 // ------------------------------------------------------------------ sag tik menusu
 export type MenuItem = { label: string; icon?: ReactNode; danger?: boolean; run: () => void } | "sep";
@@ -310,11 +312,74 @@ function SettingsDialog() {
   );
 }
 
+function HistoryDialog({ path }: { path: string }) {
+  const close = () => useStore.setState({ dialog: null });
+  const [list, setList] = useState<{ id: string; savedAt: number; size: number }[] | null>(null);
+  const [sel, setSel] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const current = useStore((s) => s.notes[path]);
+  useEffect(() => {
+    void api.history.list(path).then((l) => {
+      setList(l);
+      if (l[0]) setSel(l[0].id);
+    });
+  }, [path]);
+  useEffect(() => {
+    if (sel) void api.history.read(path, sel).then(setText).catch(() => setText(""));
+  }, [path, sel]);
+  const change = useMemo(() => {
+    if (current === undefined || !text) return null;
+    let add = 0;
+    let del = 0;
+    for (const p of diffLines(text, current)) {
+      if (p.added) add += p.count ?? 0;
+      if (p.removed) del += p.count ?? 0;
+    }
+    return { add, del };
+  }, [text, current]);
+  const restore = async () => {
+    if (!text) return;
+    if (isNote(path)) updateNote(path, text);
+    else await api.vault.write(path, text);
+    toast("Eski sürüm geri yüklendi (şimdiki hali de geçmişe kaydedildi)");
+    close();
+  };
+  return (
+    <div className="modal-backdrop" onMouseDown={close} onKeyDown={(e) => e.key === "Escape" && close()}>
+      <div className="dialog history-dialog" onMouseDown={(e) => e.stopPropagation()}>
+        <h3>Dosya geçmişi · {title(path)}</h3>
+        {list && list.length === 0 && <p className="dialog-text">Henüz eski sürüm yok. Not değiştikçe en çok 5 dakikada bir eski hali saklanır (son 30 sürüm).</p>}
+        {list && list.length > 0 && (
+          <div className="history-body">
+            <div className="history-list">
+              {list.map((v) => (
+                <button key={v.id} className={`history-row${sel === v.id ? " on" : ""}`} onClick={() => setSel(v.id)}>
+                  {new Date(v.savedAt).toLocaleString("tr-TR")}
+                  <span className="muted"> · {Math.max(1, Math.round(v.size / 1024))} KB</span>
+                </button>
+              ))}
+            </div>
+            <div className="history-preview">
+              {change && <div className="history-change"><span className="add">+{change.add}</span> <span className="del">−{change.del}</span> satır (şimdiki hale göre)</div>}
+              {isNote(path) ? <article className="markdown" dangerouslySetInnerHTML={{ __html: renderNote(path, text) }} /> : <pre>{text.slice(0, 20000)}</pre>}
+            </div>
+          </div>
+        )}
+        <div className="dialog-actions">
+          <button className="btn" onClick={close}>Kapat</button>
+          <button className="btn primary" disabled={!text} onClick={() => void restore()}>Bu sürümü geri yükle</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Dialogs() {
   const dialog = useStore((s) => s.dialog);
   if (!dialog) return null;
   if (dialog.type === "prompt") return <PromptDialog key={dialog.title + dialog.value} {...dialog} />;
   if (dialog.type === "confirm") return <ConfirmDialog {...dialog} />;
+  if (dialog.type === "history") return <HistoryDialog path={dialog.path} />;
   return <SettingsDialog />;
 }
 
