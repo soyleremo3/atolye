@@ -5,7 +5,7 @@ import mdCss from "../styles/markdown.css?inline";
 import { api } from "../api";
 import { toast, useStore } from "../store";
 import { renderDrawings, renderMermaid } from "./diagrams";
-import { esc } from "./markdown";
+import { esc, loadHljs, loadKatex } from "./markdown";
 import { title } from "./paths";
 import { renderNote } from "./render";
 
@@ -20,6 +20,7 @@ async function toDataUrl(url: string): Promise<string> {
 }
 
 export async function buildExportHtml(path: string): Promise<string> {
+  await Promise.all([loadKatex(), loadHljs()]); // formul ve kod yer tutucu olarak kalmasin
   const s = useStore.getState();
   const box = document.createElement("div");
   box.className = "markdown export";

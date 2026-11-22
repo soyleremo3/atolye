@@ -8,8 +8,8 @@ import type { MarkdownIt as MarkdownItType } from "markdown-it";
 import footnote from "markdown-it-footnote";
 import mark from "markdown-it-mark";
 import katexPlugin from "@vscode/markdown-it-katex";
-import katex from "katex";
-import hljs from "highlight.js/lib/common";
+import type Katex from "katex";
+import type { HLJSApi } from "highlight.js";
 import DOMPurify from "dompurify";
 import { splitTarget } from "./links";
 import { dirname, isDrawing, isImage, isNote, join, title } from "./paths";
@@ -41,16 +41,85 @@ const CALLOUT_TITLE: Record<string, string> = {
   missing: "Eksik", danger: "Tehlike", error: "Hata", bug: "Hata", example: "Örnek", quote: "Alıntı", cite: "Alıntı",
 };
 
+// ------------------------------------------- matematik (KaTeX) ve kod renklendirme (highlight.js)
+// Ikisi de acilis dosyasinda degil: uygulama acilir acilmaz ayri parcalar olarak arka planda yuklenir.
+// O ana kadar cizilenler yer tutucu olur (formul metni / duz kod); parca gelince yerinde cizilir ve
+// onizlemeler (renderVersion'a bagli) yeniden hesaplanir.
+let katexMod: typeof Katex | null = null;
+let hljsMod: HLJSApi | null = null;
+let renderVersion = 0;
+const renderListeners = new Set<() => void>();
+
+function texToHtml(tex: string, displayMode: boolean): string {
+  if (katexMod) return katexMod.renderToString(tex, { displayMode, throwOnError: false });
+  void loadKatex();
+  return `<span class="math-pending" data-tex="${encodeURIComponent(tex)}" data-display="${displayMode ? 1 : 0}">${esc(tex)}</span>`;
+}
+
 function highlight(code: string, lang: string): string {
-  if (lang && hljs.getLanguage(lang)) {
+  if (!lang) return esc(code);
+  if (!hljsMod) void loadHljs();
+  if (!hljsMod) return `<span class="hl-pending" data-lang="${esc(lang)}">${esc(code)}</span>`;
+  if (hljsMod.getLanguage(lang)) {
     try {
-      return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+      return hljsMod.highlight(code, { language: lang, ignoreIllegals: true }).value;
     } catch {
       /* duz metin */
     }
   }
   return esc(code);
 }
+
+/** Tembel parcalar yuklendikce artar; onizlemeler useSyncExternalStore ile buna baglanir. */
+export const getRenderVersion = () => renderVersion;
+export function subscribeRender(cb: () => void): () => void {
+  renderListeners.add(cb);
+  return () => renderListeners.delete(cb);
+}
+
+function bump(selector: string, upgrade: (el: HTMLElement) => void): void {
+  renderVersion++;
+  if (typeof document !== "undefined") for (const el of document.querySelectorAll<HTMLElement>(selector)) upgrade(el);
+  for (const cb of renderListeners) cb();
+}
+
+let katexLoad: Promise<typeof Katex> | null = null;
+let hljsLoad: Promise<HLJSApi> | null = null;
+
+/** Ilk formulde ya da acilistan sonraki ilk bos anda yuklenir. */
+export function loadKatex(): Promise<typeof Katex> {
+  return (katexLoad ??= import("./katexLoader").then((m) => {
+    katexMod = m.default;
+    bump(".math-pending", (el) => {
+      el.outerHTML = texToHtml(decodeURIComponent(el.dataset.tex ?? ""), el.dataset.display === "1");
+    });
+    return m.default;
+  }));
+}
+
+/** Ilk renkli kod blogunda ya da acilistan sonraki ilk bos anda yuklenir. */
+export function loadHljs(): Promise<HLJSApi> {
+  return (hljsLoad ??= import("highlight.js/lib/common").then((m) => {
+    hljsMod = m.default;
+    bump(".hl-pending", (el) => {
+      el.outerHTML = highlight(el.textContent ?? "", el.dataset.lang ?? "");
+    });
+    return m.default;
+  }));
+}
+
+// Acilis bittikten sonra bos anda hazirla: ilk formul/kod blogu acildiginda beklemeden cizilsin.
+if (typeof window !== "undefined") {
+  const later = () => {
+    void loadHljs();
+    void loadKatex();
+  };
+  window.setTimeout(() => ("requestIdleCallback" in window ? window.requestIdleCallback(later, { timeout: 4000 }) : later()), 2500);
+}
+
+const lazyKatex = {
+  renderToString: (tex: string, opts?: { displayMode?: boolean }) => texToHtml(tex, !!opts?.displayMode),
+};
 
 function wikilinkPlugin(md: MarkdownItType): void {
   md.inline.ruler.before("link", "wikilink", (state, silent) => {
@@ -192,7 +261,7 @@ function fencePlugin(md: MarkdownItType): void {
       return `<div class="mermaid-block" data-line="${line}" data-code="${encodeURIComponent(t.content)}"><div class="embed-loading">Şema çiziliyor…</div></div>`;
     if (lang === "math" || lang === "latex" || lang === "tex") {
       try {
-        return `<div class="math-block" data-line="${line}">${katex.renderToString(t.content, { displayMode: true, throwOnError: false })}</div>`;
+        return `<div class="math-block" data-line="${line}">${texToHtml(t.content, true)}</div>`;
       } catch {
         /* duz kod olarak goster */
       }
@@ -245,7 +314,7 @@ function linkPlugin(md: MarkdownItType): void {
 }
 
 export const md = new MarkdownIt({ html: false, linkify: true, breaks: true, typographer: false });
-md.use(footnote).use(mark).use(katexPlugin, { throwOnError: false, enableBareBlocks: true });
+md.use(footnote).use(mark).use(katexPlugin, { throwOnError: false, enableBareBlocks: true, katex: lazyKatex as never });
 wikilinkPlugin(md);
 tagPlugin(md);
 calloutPlugin(md);

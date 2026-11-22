@@ -1,7 +1,8 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { api } from "../api";
 import { renderDrawings, renderMermaid } from "../lib/diagrams";
 import { renderNote } from "../lib/render";
+import { getRenderVersion, subscribeRender } from "../lib/markdown";
 import { followLink, getIndex, isDark, openPath, openSearch, toast, updateNote, useStore } from "../store";
 import { title as noteTitle } from "../lib/paths";
 
@@ -13,7 +14,8 @@ export function Preview({ path, content }: Props) {
   const indexVersion = useStore((s) => s.indexVersion);
   const dark = useStore(isDark);
   const jump = useStore((s) => (s.jump?.path === path ? s.jump : null));
-  const html = useMemo(() => renderNote(path, deferred), [path, deferred, indexVersion]);
+  const renderVersion = useSyncExternalStore(subscribeRender, getRenderVersion);
+  const html = useMemo(() => renderNote(path, deferred), [path, deferred, indexVersion, renderVersion]);
 
   useLayoutEffect(() => {
     const el = ref.current;

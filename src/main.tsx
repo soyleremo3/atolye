@@ -6,7 +6,6 @@ window.addEventListener("error", (e) => window.__errors!.push(String(e.message))
 window.addEventListener("unhandledrejection", (e) => window.__errors!.push(String(e.reason?.message || e.reason)));
 
 import { createRoot } from "react-dom/client";
-import "katex/dist/katex.min.css";
 import "./styles/app.css";
 import "./styles/markdown.css";
 import "./styles/atolye.css";
