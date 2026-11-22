@@ -379,6 +379,9 @@ export class DogOffice {
   private pointer = new THREE.Vector2();
   private frameId = 0;
   private active = true;
+  /** Kullanici surukler/yakinlastirirken (ve biraz sonrasina kadar) tam hiz; yoksa 30 kare/sn yeter. */
+  private fastUntil = 0;
+  private lastFrame = 0;
   private selected: string | null = null;
   private resize: ResizeObserver;
   private key = "";
@@ -458,13 +461,23 @@ export class DogOffice {
     this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(host);
     this.fit();
-    this.loop();
+    const fast = () => (this.fastUntil = performance.now() + 900);
+    this.controls.addEventListener("start", () => (this.fastUntil = Infinity));
+    this.controls.addEventListener("end", fast);
+    this.controls.addEventListener("change", () => {
+      if (this.fastUntil !== Infinity) fast();
+    });
+    this.frameId = requestAnimationFrame(this.loop);
   }
 
   setActive(active: boolean) {
     this.active = active;
     this.labels.domElement.style.display = active ? "" : "none";
-    if (active) this.clock.getDelta();
+    if (active) {
+      this.clock.getDelta();
+      // gizliyken dongu tamamen durur (her kare bos bile olsa uyanmasin); gorununce yeniden baslar
+      if (!this.frameId) this.frameId = requestAnimationFrame(this.loop);
+    }
   }
 
   /** Ajan listesi degisince maketi yeniden kurar; sadece durum/yazi degisince odayi gunceller. */
@@ -530,6 +543,7 @@ export class DogOffice {
     this.sparkGeo.dispose();
     this.sparkMat.dispose();
     this.renderer.dispose();
+    this.renderer.forceContextLoss(); // ekran karti bellegi hemen geri verilsin
     el.remove();
     this.labels.domElement.remove();
   }
@@ -980,9 +994,16 @@ export class DogOffice {
     }
   }
 
-  private loop = () => {
+  private loop = (now: number) => {
+    if (!this.active) {
+      this.frameId = 0;
+      return;
+    }
     this.frameId = requestAnimationFrame(this.loop);
-    if (!this.active) return;
+    // bostayken 30 kare/sn: kopek animasyonlari yavas, fark edilmez; islemci ve ekran karti yarisi kadar calisir
+    const fast = this.flyTo !== null || now < this.fastUntil;
+    if (!fast && now - this.lastFrame < 1000 / 30 - 2) return;
+    this.lastFrame = now;
     const dt = Math.min(0.05, this.clock.getDelta());
     const t = this.clock.getElapsedTime();
     for (const room of this.rooms.values()) this.animateDog(room, t, dt);

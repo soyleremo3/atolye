@@ -19,6 +19,8 @@ type Props = {
   modelLabel: (m: string) => string;
 };
 
+/** Gizli ofisin 3B sahnesi bu sureden sonra kapatilir (bellek geri gelir). */
+const RELEASE_AFTER_MS = 30_000;
 const STATE_TR: Record<OfficeState, string> = { idle: "Uyuyor", working: "Çalışıyor", done: "Bitirdi", failed: "Hata", blocked: "Takıldı", planned: "Planlı" };
 const provider = (m: string): OfficeAgent["provider"] => (m.startsWith("claude-") ? "claude" : m.startsWith("google-") ? "google" : "none");
 const short = (s: string) => s.replace(/\s*\(.*\)\s*$/, "").split(/\s+/).slice(0, 3).join(" ");
@@ -103,8 +105,19 @@ export function AgentsOffice3D({ snap, active, onOpen, onRun, onApprovals, onCha
     [snap.roles, running, ago],
   );
 
+  // Ofis 30 sn gizli kalirsa 3B sahne kapatilir (ekran karti bellegi ~0,5 GB geri gelir); donunce yeniden kurulur.
+  const [alive, setAlive] = useState(active);
   useEffect(() => {
-    if (!host.current) return;
+    if (active) {
+      setAlive(true);
+      return;
+    }
+    const t = window.setTimeout(() => setAlive(false), RELEASE_AFTER_MS);
+    return () => window.clearTimeout(t);
+  }, [active]);
+
+  useEffect(() => {
+    if (!alive || !host.current) return;
     try {
       office.current = new DogOffice(host.current, {
         onSelect: (hit) => {
@@ -120,14 +133,14 @@ export function AgentsOffice3D({ snap, active, onOpen, onRun, onApprovals, onCha
       office.current?.dispose();
       office.current = null;
     };
-  }, []);
+  }, [alive]);
 
   const pending = snap.approvals.pending.filter((a) => !hidden.includes(a.name));
-  useEffect(() => office.current?.setAgents(agents, snap.approvals.pending.length), [agents, snap.approvals.pending.length]);
-  useEffect(() => office.current?.setActive(active), [active]);
-  useEffect(() => office.current?.select(selected), [selected]);
-  useEffect(() => office.current?.setInsets(showHello ? 296 : 16, showSide ? (compact ? 280 : 326) : 16), [showHello, showSide, compact]);
-  useEffect(() => office.current?.setShowAllLabels(allLabels), [allLabels]);
+  useEffect(() => office.current?.setAgents(agents, snap.approvals.pending.length), [agents, snap.approvals.pending.length, alive]);
+  useEffect(() => office.current?.setActive(active), [active, alive]);
+  useEffect(() => office.current?.select(selected), [selected, alive]);
+  useEffect(() => office.current?.setInsets(showHello ? 296 : 16, showSide ? (compact ? 280 : 326) : 16), [showHello, showSide, compact, alive]);
+  useEffect(() => office.current?.setShowAllLabels(allLabels), [allLabels, alive]);
 
   const counts = useMemo(() => {
     const c = { working: 0, idle: 0, planned: 0, done: 0, blocked: 0 };
