@@ -74,22 +74,44 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       await wait(2500);
       const roles = JSON.parse(rd("roster.json")).roles.length;
       await wait(1500);
-      const canvas = await js(`(() => { const c = document.querySelector('.ag-3d-canvas canvas'); return c ? c.width * c.height : 0; })()`);
+      const canvas = await js(`(() => { const c = document.querySelector('.office-stage canvas'); return c ? c.width * c.height : 0; })()`);
       check("ajanlar: 3B köpek ofisi çizildi", canvas > 0, `canvas ${canvas}`);
+      const visibleCards = `[...document.querySelectorAll('.office-card')].filter(c => c.isConnected && c.style.display !== 'none').length`;
+      const quiet = await js(visibleCards);
+      check("ajanlar: başta yalnız önemli kartlar görünür", quiet > 0 && quiet < roles, `${quiet}/${roles}`);
       await shot("ag-00-3b-ofis");
-      // bir kopege tikla: ayrinti paneli acilmali (ekranin ortasindaki kopekleri dene)
-      const box = await js(`(() => { const r = document.querySelector('.ag-3d-canvas canvas').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()`);
-      let panel = false;
-      for (const [fx, fy] of [0.3, 0.4, 0.5, 0.6, 0.7].flatMap((x) => [0.35, 0.45, 0.55, 0.65].map((y) => [x, y]))) {
-        const x = Math.round(box[0] + box[2] * fx);
-        const y = Math.round(box[1] + box[3] * fy);
-        wc.sendInputEvent({ type: "mouseDown", x, y, button: "left", clickCount: 1 });
-        wc.sendInputEvent({ type: "mouseUp", x, y, button: "left", clickCount: 1 });
-        await wait(500);
-        if (await js(`!!document.querySelector('.ag-3d-panel')`)) { panel = true; break; }
-      }
-      check("ajanlar: köpeğe tıklayınca ayrıntı paneli", panel);
+      await js(`document.querySelector('.office-tool[title="Tüm etiketleri göster"]')?.click()`);
+      await wait(800);
+      const officeCards = await js(visibleCards);
+      check("ajanlar: 'tüm etiketler' ile her ajanın kartı görünür", officeCards === roles, `${officeCards}/${roles}`);
+      // karta tiklayinca ayrinti paneli
+      await js(`[...document.querySelectorAll('.office-card')].find(c => c.textContent.includes('Shoot'))?.click()`);
+      await wait(600);
+      check("ajanlar: karta tıklayınca ayrıntı paneli", await js(`!!document.querySelector('.office-detail')`));
       await shot("ag-00b-kopek-secili");
+      // CANLI VERI: durum.json degisince kopek, kart ve sayac degismeli
+      const durum = path.join(repo, "roller", "shoot", "durum.json");
+      const orig = readFileSync(durum, "utf8");
+      const j = JSON.parse(orig);
+      writeFileSync(durum, JSON.stringify({ ...j, state: "working", lastRun: new Date().toISOString(), did: "motor testini yaziyor" }, null, 2));
+      await js(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('Eşitle'))?.click()`);
+      await wait(3500);
+      const st = await js(`window.__office?.stateOf('shoot')`);
+      const cardLive = await js(`[...document.querySelectorAll('.office-card')].some(c => c.classList.contains('st-working') && c.textContent.includes('motor testini'))`);
+      const pill = await js(`document.querySelector('.office-pill')?.textContent || ''`);
+      check("ajanlar: canlı veri (durum.json → köpek çalışıyor)", st === "working" && cardLive && /1 ajan/.test(pill), `${st} · kart ${cardLive} · ${pill.trim()}`);
+      await wait(2500);
+      await shot("ag-00c-canli-calisiyor");
+      await js(`window.__office?.focus("shoot", 3)`);
+      await wait(2500);
+      await shot("ag-00d-yakin-calisiyor");
+      await js(`window.__office?.focus(null)`);
+      await wait(1500);
+      writeFileSync(durum, JSON.stringify({ ...j, state: "done", lastRun: new Date().toISOString(), did: "motor testi bitti" }, null, 2));
+      await js(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('Eşitle'))?.click()`);
+      await wait(3500);
+      check("ajanlar: canlı veri (bitti)", (await js(`window.__office?.stateOf('shoot')`)) === "done");
+      writeFileSync(durum, orig);
       await js(`[...document.querySelectorAll('.ag-viewswitch .ag-tab')].find(b => b.textContent.includes('Kartlar')).click()`);
       await wait(600);
       const cards = await js(`document.querySelectorAll('.ag-card').length`);

@@ -12,6 +12,7 @@ import "./styles/markdown.css";
 import "./styles/atolye.css";
 import "./styles/agents.css";
 import "./styles/features.css";
+import "./styles/office.css";
 import { App } from "./App";
 import { init } from "./store";
 

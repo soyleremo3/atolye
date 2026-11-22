@@ -1,0 +1,143 @@
+/* ---------------------------------------------------------------- Ajan ofisi v2 (sicak krem tema) */
+.ag-viewswitch { display: flex; gap: 4px; margin-bottom: 10px; }
+.office {
+  --o-ink: #3a3330;
+  --o-muted: #8a7f74;
+  --o-card: rgba(255, 252, 246, 0.82);
+  --o-line: rgba(120, 96, 70, 0.14);
+  --o-accent: #ef6a3c;
+  position: relative;
+  height: calc(100vh - 210px);
+  min-height: 520px;
+  border-radius: 14px;
+  overflow: hidden;
+  color: var(--o-ink);
+  background: radial-gradient(120% 90% at 50% 40%, #f8efe2 0%, #f1e3cf 55%, #e8d5bb 100%);
+  border: 1px solid #e3cfb2;
+  font-size: 13px;
+}
+.office-stage, .office-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.office-labels { position: absolute; inset: 0; pointer-events: none; }
+.office-error { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 5; }
+
+.glass {
+  background: var(--o-card);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 6px 24px rgba(120, 90, 60, 0.12), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  border-radius: 14px;
+}
+.office .muted { color: var(--o-muted); }
+.office .small { font-size: 12px; margin: 4px 0; }
+
+/* kartlar (3B sahnede, HTML) */
+.office-card {
+  pointer-events: auto;
+  cursor: pointer;
+  min-width: 128px;
+  max-width: 210px;
+  padding: 6px 10px 7px;
+  border-radius: 10px;
+  background: rgba(255, 252, 246, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 14px rgba(110, 80, 50, 0.16);
+  color: var(--o-ink);
+  font-size: 11px;
+  line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+.office-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(110, 80, 50, 0.22); }
+.office-card b { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.office-card span { color: var(--o-muted); overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+.office-card.st-working span { color: var(--o-accent); font-weight: 600; }
+.office-card.st-blocked span { color: #c27a06; font-weight: 600; }
+.office-card.st-failed span { color: #d63b3b; font-weight: 600; }
+.office-card.st-done span { color: #2f9d5b; }
+.office-card.st-planned { opacity: 0.62; }
+.office-card.sel { outline: 2px solid var(--o-accent); }
+.office-card i { font-style: normal; font-weight: 800; }
+.office-card .ok { color: #2f9d5b; }
+.office-card .warn { color: #c27a06; }
+.office-card .bad { color: #d63b3b; }
+
+@keyframes office-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.75); } }
+.office .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #c9b9a6; flex: none; }
+.office .dot.live { background: var(--o-accent); animation: office-pulse 1.2s ease-in-out infinite; }
+
+/* sol ust: selamlama */
+.office-hello { position: absolute; top: 14px; left: 14px; width: 270px; padding: 14px 16px; }
+.office-hello small { color: var(--o-muted); font-size: 11px; }
+.office-hello h2 { margin: 2px 0 8px; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; color: var(--o-ink); }
+.office-hello p { margin: 0 0 6px; line-height: 1.5; color: #5a4f48; }
+.office-hello b { color: var(--o-ink); }
+
+/* ust orta: calisan sayisi */
+.office-pill { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 6px 14px; border-radius: 20px; display: flex; gap: 8px; align-items: center; font-weight: 600; }
+
+/* sag: onaylar + akis */
+.office-side { position: absolute; top: 14px; right: 14px; bottom: 14px; width: 300px; display: flex; flex-direction: column; gap: 12px; pointer-events: none; }
+.office-side > * { pointer-events: auto; }
+.office-box { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.office-box header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.office-box header b { font-size: 14px; }
+.office-ask { background: rgba(255, 255, 255, 0.75); border: 1px solid var(--o-line); border-radius: 10px; padding: 9px 10px; display: flex; flex-direction: column; gap: 3px; }
+.office-ask p { margin: 0; color: #5a4f48; line-height: 1.4; }
+.office-ask-actions { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.office .btn { background: #fff; color: var(--o-ink); border: 1px solid var(--o-line); }
+.office .btn:hover { background: #fbf4ea; }
+.office .btn.dark { background: #2f2925; color: #fff; border-color: #2f2925; }
+.office .btn.dark:hover { background: #463d37; }
+.office .link-btn { color: var(--o-accent); }
+.office-feed { flex: 1; overflow: auto; }
+.live-tag { display: inline-flex; gap: 5px; align-items: center; color: var(--o-accent); font-size: 12px; font-weight: 600; }
+.office-feed-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--o-line); line-height: 1.4; }
+.office-feed-row:last-child { border-bottom: 0; }
+.office-feed-row.ok b { color: #2f9d5b; }
+.office-feed-row.bad b { color: #d63b3b; }
+.office-feed-row .avatar { width: 20px; height: 20px; border-radius: 50%; flex: none; margin-top: 1px; background: #d9c9b4; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7); }
+.office-feed-row .avatar.pv-claude { background: radial-gradient(circle at 35% 35%, #f6c48e, #e39a4f); }
+.office-feed-row .avatar.pv-google { background: radial-gradient(circle at 35% 35%, #c7d3e6, #8ea3c0); }
+.office-feed-row .avatar.git { background: radial-gradient(circle at 35% 35%, #efe4d4, #cbb79c); }
+
+/* sol alt: secili ajan */
+.office-detail { position: absolute; left: 14px; bottom: 14px; width: 320px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.office-detail header { display: flex; align-items: center; gap: 8px; }
+.office-detail header b { flex: 1; font-size: 14px; }
+.office-detail p { margin: 0; line-height: 1.45; }
+.office-detail .ag-num { background: #efe2cf; color: #6b5d50; }
+.office-detail .ag-model { color: var(--o-muted); }
+.office-detail-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.office .ag-pill { background: #efe2cf; color: var(--o-ink); align-self: flex-start; }
+
+@media (max-width: 1100px) {
+  .office-side { width: 250px; }
+  .office-hello { width: 230px; }
+}
+
+/* katmanlar: sahne < kartlar < paneller */
+.office-stage { z-index: 0; }
+.office-labels { z-index: 1; }
+.office-hello, .office-pill, .office-side, .office-detail, .office-error { z-index: 2; }
+/* kompakt kartlar (uyuyanlar tek satira yakin, calisanlar one cikar) */
+.office-card { min-width: 0; max-width: 168px; padding: 4px 8px 5px; font-size: 10px; border-radius: 8px; }
+.office-card b { font-size: 11px; }
+.office-card.st-idle span, .office-card.st-planned span { font-size: 9.5px; }
+.office-card.st-working, .office-card.st-blocked, .office-card.st-failed { max-width: 210px; z-index: 3; box-shadow: 0 6px 20px rgba(239, 106, 60, 0.28); }
+
+/* panel dugmeleri + dar ekran */
+.office-tools { position: absolute; bottom: 14px; right: 14px; display: flex; gap: 6px; z-index: 3; }
+.office-side { bottom: 60px; }
+.office-tool { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: var(--o-muted); cursor: pointer; padding: 0; }
+.office-tool.on { color: var(--o-accent); }
+.office.compact .office-side { width: 260px; }
+.office.compact .office-hello { width: 260px; padding: 12px 14px; }
+.office.compact .office-hello h2 { font-size: 19px; }
+.office-detail { bottom: 60px; }
+
+/* ayrinti paneli kartlarin ustunde */
+.office-detail { z-index: 4; }

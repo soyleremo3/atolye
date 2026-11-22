@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { api, type AgentItem, type AgentRole, type AgentRun, type AgentRunEvent, type AgentsConfig, type AgentsSnapshot } from "../api";
 import { md, stripFrontmatter, type RenderEnv } from "../lib/markdown";
-import { isDark, toast, useStore } from "../store";
+import { toast, useStore } from "../store";
 import { AgentsOffice3D } from "./AgentsOffice3D";
 
 type TabId = "office" | "approvals" | "board" | "reports" | "notes" | "runs";
@@ -67,7 +67,6 @@ export function AgentsView({ active }: { active: boolean }) {
       return "3d";
     }
   });
-  const dark = useStore(isDark);
   const pickView = (v: "3d" | "cards") => {
     setOfficeView(v);
     try {
@@ -77,6 +76,8 @@ export function AgentsView({ active }: { active: boolean }) {
     }
   };
   const lastSync = useRef(0);
+  const tabRef = useRef<TabId>("office");
+  tabRef.current = tab;
 
   const refresh = useCallback(async () => {
     try {
@@ -111,7 +112,8 @@ export function AgentsView({ active }: { active: boolean }) {
   useEffect(() => {
     if (!active) return;
     const t = setInterval(() => {
-      if (Date.now() - lastSync.current > SYNC_EVERY_MS) void sync(true);
+      // ofis aciksa dakikada bir eşitle (bulut isleri ~1 dk icinde gorunur), degilse 5 dakikada bir
+      if (Date.now() - lastSync.current > (tabRef.current === "office" ? 60_000 : SYNC_EVERY_MS)) void sync(true);
       else void refresh();
     }, REFRESH_EVERY_MS);
     return () => clearInterval(t);
@@ -166,7 +168,7 @@ export function AgentsView({ active }: { active: boolean }) {
                 <button className={`ag-tab${officeView === "cards" ? " on" : ""}`} onClick={() => pickView("cards")}>Kartlar</button>
               </div>
               {officeView === "3d" ? (
-                <AgentsOffice3D roles={snap.roles} pending={snap.approvals.pending.length} active={active && tab === "office"} dark={dark}
+                <AgentsOffice3D snap={snap} active={active && tab === "office"} onChanged={refresh}
                   onOpen={open} onRun={() => setTab("runs")} onApprovals={() => setTab("approvals")} ago={ago} modelLabel={modelLabel} />
               ) : (
                 <Office snap={snap} onOpen={open} onRun={() => setTab("runs")} />
