@@ -19,7 +19,18 @@ export type VaultIndex = {
 
 const cache = new Map<string, { src: string; parsed: Parsed }>();
 
-const fold = (s: string) => s.toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
+const foldRaw = (s: string) => s.toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
+// Ayni kelimeler binlerce kez gecer: katlanmis hali onbellekte (aramanin en pahali adimiydi)
+const foldCache = new Map<string, string>();
+const fold = (s: string): string => {
+  let f = foldCache.get(s);
+  if (f === undefined) {
+    if (foldCache.size > 200_000) foldCache.clear();
+    f = foldRaw(s);
+    foldCache.set(s, f);
+  }
+  return f;
+};
 
 const search = new MiniSearch<{ id: string; title: string; content: string }>({
   fields: ["title", "content"],
@@ -72,23 +83,47 @@ export function buildIndex(notes: Record<string, string>, allPaths: string[]): V
     }
   }
   for (const key of cache.keys()) if (!(key in notes)) cache.delete(key);
-  syncSearch(notes);
+  scheduleSearchSync(notes);
   return { resolver, parsed, outgoing, backlinks, unresolved, tags };
 }
 
-function syncSearch(notes: Record<string, string>): void {
+// Tam metin arama dizini ekrani bekletmeden, bos anlarda parca parca guncellenir.
+// Arama yapildiginda eksik kalan kisim o an tamamlanir (searchNotes), sonuc hic eksik olmaz.
+let pendingNotes: Record<string, string> | null = null;
+let idleHandle = 0;
+const idle = (cb: (d: { timeRemaining: () => number }) => void) =>
+  "requestIdleCallback" in globalThis ? requestIdleCallback(cb, { timeout: 3000 }) : (setTimeout(() => cb({ timeRemaining: () => 8 }), 50) as unknown as number);
+
+function scheduleSearchSync(notes: Record<string, string>): void {
+  pendingNotes = notes;
+  if (!idleHandle) idleHandle = idle(step);
+}
+
+function step(deadline: { timeRemaining: () => number }): void {
+  idleHandle = 0;
+  const notes = pendingNotes;
+  if (!notes) return;
+  if (syncSearch(notes, () => deadline.timeRemaining() > 2)) pendingNotes = null;
+  else idleHandle = idle(step);
+}
+
+/** Dizini notlarla esitler; `more` false donerse yarida birakir. Bitti mi doner. */
+function syncSearch(notes: Record<string, string>, more: () => boolean = () => true): boolean {
   for (const id of [...indexed.keys()]) {
     if (!(id in notes)) {
       search.discard(id);
       indexed.delete(id);
     }
   }
-  for (const [id, content] of Object.entries(notes)) {
+  for (const id in notes) {
+    const content = notes[id];
     if (indexed.get(id) === content) continue;
+    if (!more()) return false;
     if (indexed.has(id)) search.discard(id);
     search.add({ id, title: title(id), content });
     indexed.set(id, content);
   }
+  return true;
 }
 
 export type SearchHit = { path: string; score: number; snippet: string; line: number };
@@ -102,6 +137,8 @@ export function searchNotes(query: string, notes: Record<string, string>, limit 
       .filter((p) => parsedOf(p, notes[p]).tags.some((t) => t.toLowerCase() === tag || t.toLowerCase().startsWith(`${tag}/`)))
       .map((p) => ({ path: p, score: 1, ...snippetFor(notes[p], `#${tag}`) }));
   }
+  syncSearch(notes); // arka planda bitmemisse simdi tamamla
+  pendingNotes = null;
   return search
     .search(q)
     .slice(0, limit)
