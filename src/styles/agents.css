@@ -118,3 +118,33 @@
 .ag-doc-body.markdown { padding: 16px 22px 24px; }
 .ag-approval .markdown h1 { font-size: 1.25em; margin: 0.2em 0 0.4em; }
 .ag-approval .markdown > :last-child { margin-bottom: 0; }
+
+/* 3B kopek ofisi */
+.ag-viewswitch { display: flex; gap: 4px; margin-bottom: 10px; }
+.ag-3d { position: relative; height: calc(100vh - 210px); min-height: 420px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.ag-3d-canvas, .ag-3d-canvas canvas { width: 100%; height: 100%; display: block; }
+.ag-3d-error { position: absolute; top: 10px; left: 10px; right: 10px; margin: 0; }
+.ag-3d-legend {
+  position: absolute; left: 10px; bottom: 10px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px;
+}
+.ag-3d-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.ag-3d-legend .sw.claude { background: #d97706; }
+.ag-3d-legend .sw.google { background: #5b7bd5; }
+.ag-3d-approvals {
+  position: absolute; top: 10px; left: 10px; display: inline-flex; gap: 6px; align-items: center; border: 0; border-radius: 8px;
+  background: #f59e0b; color: #1b1d23; font: inherit; font-weight: 600; padding: 7px 12px; cursor: pointer;
+}
+.ag-3d-panel {
+  position: absolute; top: 10px; right: 10px; width: 320px; max-height: calc(100% - 20px); overflow: auto; background: var(--bg-2);
+  border: 1px solid var(--border-strong); border-radius: 10px; padding: 12px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+.ag-3d-panel p { margin: 0; line-height: 1.45; }
+.ag-3d-panel-head { display: flex; align-items: center; gap: 8px; }
+.ag-3d-panel-head b { flex: 1; color: var(--heading); }
+.ag-3d-panel-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.ag-pill.st-working { background: rgba(45, 212, 191, 0.25); }
+.ag-pill.st-done { background: rgba(34, 197, 94, 0.2); }
+.ag-pill.st-blocked { background: rgba(245, 158, 11, 0.25); }
+.ag-pill.st-failed { background: rgba(239, 68, 68, 0.25); }

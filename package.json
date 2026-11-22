@@ -29,6 +29,7 @@
     "@types/node": "26.6.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@types/three": "0.170.0",
     "@vitejs/plugin-react": "6.1.2",
     "@vscode/markdown-it-katex": "1.1.2",
     "codemirror": "6.0.2",
@@ -48,6 +49,7 @@
     "minisearch": "7.2.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "three": "0.170.0",
     "typescript": "7.0.2",
     "vite": "8.3.5",
     "zustand": "5.0.16"

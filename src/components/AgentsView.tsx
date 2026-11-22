@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { api, type AgentItem, type AgentRole, type AgentRun, type AgentRunEvent, type AgentsConfig, type AgentsSnapshot } from "../api";
 import { md, stripFrontmatter } from "../lib/markdown";
-import { toast, useStore } from "../store";
+import { isDark, toast, useStore } from "../store";
+import { AgentsOffice3D } from "./AgentsOffice3D";
 
 type TabId = "office" | "approvals" | "board" | "reports" | "notes" | "runs";
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
@@ -57,6 +58,22 @@ export function AgentsView({ active }: { active: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [doc, setDoc] = useState<{ title: string; text: string } | null>(null);
+  const [officeView, setOfficeView] = useState<"3d" | "cards">(() => {
+    try {
+      return localStorage.getItem("atolye.agents.view") === "cards" ? "cards" : "3d";
+    } catch {
+      return "3d";
+    }
+  });
+  const dark = useStore(isDark);
+  const pickView = (v: "3d" | "cards") => {
+    setOfficeView(v);
+    try {
+      localStorage.setItem("atolye.agents.view", v);
+    } catch {
+      /* yok sayilir */
+    }
+  };
   const lastSync = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -140,7 +157,20 @@ export function AgentsView({ active }: { active: boolean }) {
 
       {snap && (
         <div className="ag-body">
-          {tab === "office" && <Office snap={snap} onOpen={open} onRun={() => setTab("runs")} />}
+          {tab === "office" && (
+            <>
+              <div className="ag-viewswitch">
+                <button className={`ag-tab${officeView === "3d" ? " on" : ""}`} onClick={() => pickView("3d")}>3B ofis</button>
+                <button className={`ag-tab${officeView === "cards" ? " on" : ""}`} onClick={() => pickView("cards")}>Kartlar</button>
+              </div>
+              {officeView === "3d" ? (
+                <AgentsOffice3D roles={snap.roles} pending={snap.approvals.pending.length} active={active && tab === "office"} dark={dark}
+                  onOpen={open} onRun={() => setTab("runs")} onApprovals={() => setTab("approvals")} ago={ago} modelLabel={modelLabel} />
+              ) : (
+                <Office snap={snap} onOpen={open} onRun={() => setTab("runs")} />
+              )}
+            </>
+          )}
           {tab === "approvals" && <Approvals snap={snap} onDone={() => void refresh()} />}
           {tab === "board" && <Board snap={snap} onOpen={open} onDone={() => void refresh()} />}
           {tab === "reports" && <Reports snap={snap} onOpen={open} />}

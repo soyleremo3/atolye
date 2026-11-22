@@ -73,6 +73,25 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       await key("J", ["control", "alt"]);
       await wait(2500);
       const roles = JSON.parse(rd("roster.json")).roles.length;
+      await wait(1500);
+      const canvas = await js(`(() => { const c = document.querySelector('.ag-3d-canvas canvas'); return c ? c.width * c.height : 0; })()`);
+      check("ajanlar: 3B köpek ofisi çizildi", canvas > 0, `canvas ${canvas}`);
+      await shot("ag-00-3b-ofis");
+      // bir kopege tikla: ayrinti paneli acilmali (ekranin ortasindaki kopekleri dene)
+      const box = await js(`(() => { const r = document.querySelector('.ag-3d-canvas canvas').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()`);
+      let panel = false;
+      for (const [fx, fy] of [0.3, 0.4, 0.5, 0.6, 0.7].flatMap((x) => [0.35, 0.45, 0.55, 0.65].map((y) => [x, y]))) {
+        const x = Math.round(box[0] + box[2] * fx);
+        const y = Math.round(box[1] + box[3] * fy);
+        wc.sendInputEvent({ type: "mouseDown", x, y, button: "left", clickCount: 1 });
+        wc.sendInputEvent({ type: "mouseUp", x, y, button: "left", clickCount: 1 });
+        await wait(500);
+        if (await js(`!!document.querySelector('.ag-3d-panel')`)) { panel = true; break; }
+      }
+      check("ajanlar: köpeğe tıklayınca ayrıntı paneli", panel);
+      await shot("ag-00b-kopek-secili");
+      await js(`[...document.querySelectorAll('.ag-viewswitch .ag-tab')].find(b => b.textContent.includes('Kartlar')).click()`);
+      await wait(600);
       const cards = await js(`document.querySelectorAll('.ag-card').length`);
       check("ajanlar: ofis kartları", cards === roles, `${cards}/${roles}`);
       await shot("ag-01-ofis");
