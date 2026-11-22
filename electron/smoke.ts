@@ -7,6 +7,14 @@ import { promises as fs, readdirSync, readFileSync, writeFileSync } from "node:f
 import path from "node:path";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Kosul dogru olana kadar (en fazla ms) bekler: diske yazma gecikmesine karsi sabit beklemeden saglam. */
+async function waitFor(cond: () => boolean, ms = 5000): Promise<boolean> {
+  for (let t = 0; t < ms; t += 200) {
+    if (cond()) return true;
+    await wait(200);
+  }
+  return cond();
+}
 
 export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void> {
   await fs.mkdir(outDir, { recursive: true });
@@ -268,12 +276,25 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       await wait(2500);
       const rows: string = await js(`[...document.querySelectorAll('.term-view .xterm-rows')].map(r => r.textContent).join(' ')`);
       check("terminal: PowerShell komutu çalıştı", /ATOLYE-TERM-42/.test(rows), rows.slice(-160));
+      const projBtn: string = await js(`document.querySelector('.term-proj-btn')?.textContent || ''`);
+      check("terminal: varsayılan klasör uygulama projesi", /Uygulama/.test(projBtn) && /version6>/.test(rows.replace(/\s+/g, "")), projBtn);
       await js(`document.querySelector('.term-new button[title="Terminal türü seç"]')?.click()`);
       await wait(400);
       const menu: string = await js(`[...document.querySelectorAll('.term-menu button')].map(b => b.textContent + (b.disabled ? '(yok)' : '')).join(' | ')`);
       check("terminal: profil menüsü (Claude Code, Antigravity, Codex)", /Claude Code/.test(menu) && /Antigravity/.test(menu) && /Codex/.test(menu), menu);
       await shot("tl-01-terminal");
       await js(`document.querySelector('.term-new button[title="Terminal türü seç"]')?.click()`);
+      // hizli proje secimi: menu gruplari + "Kasa" satirindan dogrudan PowerShell
+      await js(`document.querySelector('.term-proj-btn')?.click()`);
+      await wait(400);
+      const heads: string = await js(`[...document.querySelectorAll('.term-proj-head')].map(h => h.textContent).join(' | ')`);
+      const rowsN: number = await js(`document.querySelectorAll('.term-proj-row').length`);
+      check("terminal: proje menüsü (projelerim + masaüstü repoları)", /Projelerim/.test(heads) && /Masaüstündeki repolar/.test(heads) && rowsN >= 4, `${heads} (${rowsN} klasör)`);
+      await shot("tl-01b-proje-menu");
+      await js(`[...document.querySelectorAll('.term-proj-row')].find(r => /Kasa/.test(r.textContent))?.querySelector('button[title="Burada PowerShell aç"]')?.click()`);
+      await wait(4000);
+      const tabTitles: string = await js(`[...document.querySelectorAll('.term-tab')].map(t => t.textContent).join(' | ')`);
+      check("terminal: menüden başka klasörde terminal açıldı", /PowerShell · Kasa/.test(tabTitles) && /Kasa/.test(await js(`document.querySelector('.term-proj-btn')?.textContent || ''`)), tabTitles);
       // not asistani
       await key("K", ["control", "alt"]);
       await wait(1200);
@@ -409,7 +430,7 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       done.dispatchEvent(new DragEvent('drop', opts));
       return true;
     })()`);
-    await wait(1200);
+    await waitFor(() => /- \[x\] Giriş ekranı için/.test(read("Görevler.md").split("## Bitti")[1] ?? ""));
     const board = read("Görevler.md");
     const bitti = board.slice(board.indexOf("## Bitti"));
     check("kartı sürükleyip Bitti'ye taşıma", moved && /- \[x\] Giriş ekranı için/.test(bitti), "taşınan kart işaretlendi mi");
@@ -445,7 +466,7 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       target.dispatchEvent(new DragEvent('drop', opts));
       return true;
     })()`);
-    await wait(1200);
+    await waitFor(() => /### Marketing\n- \[x\] /.test(read("Görevler.md").split("## Bitti")[1] ?? ""));
     const bittiRow = read("Görevler.md").split("## Bitti")[1] ?? "";
     check("kartı başka satır + sütuna sürükleme", movedRow && /### Marketing\n- \[x\] /.test(bittiRow), bittiRow.slice(0, 200));
     await shot("04b-pano-satirlar");
