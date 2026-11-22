@@ -13,6 +13,10 @@ files:
 asarUnpack:
   - node_modules/@lydell/**/*
 asar: true
+# Yalniz Turkce ve Ingilizce Chromium dil dosyalari (kalan 53 dil ~48 MB yer kaplar)
+electronLanguages:
+  - tr
+  - en-US
 npmRebuild: false
 win:
   target: dir
