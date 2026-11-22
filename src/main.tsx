@@ -10,6 +10,7 @@ import "katex/dist/katex.min.css";
 import "./styles/app.css";
 import "./styles/markdown.css";
 import "./styles/atolye.css";
+import "./styles/agents.css";
 import { App } from "./App";
 import { init } from "./store";
 

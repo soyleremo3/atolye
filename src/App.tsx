@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 import {
   ArrowLeft, ArrowRight, Braces, CalendarDays, Command, Files, FolderOpen, Globe, Hash, KanbanSquare, Network, PanelLeft, PanelRight,
-  PenTool, Search, Settings, Wrench,
+  PenTool, Search, Settings, Wrench, Bot,
 } from "lucide-react";
 import { api } from "./api";
 import { handleGlobalKey } from "./lib/commands";
 import { isBoardNote } from "./lib/paths";
 import {
-  HTTP_PATH, isDark, navigate, newDrawing, openBoard, openDaily, openGraph, openSearch, openView, SNIPPETS_PATH, toggleLeft, toggleRight,
+  AGENTS_PATH, HTTP_PATH, isDark, navigate, newDrawing, openBoard, openDaily, openGraph, openSearch, openView, SNIPPETS_PATH, toggleLeft, toggleRight,
   TOOLS_PATH, useStore,
 } from "./store";
 import { Overlays } from "./components/Overlays";
@@ -39,6 +39,16 @@ function TitleBar() {
   );
 }
 
+function AgentsButton() {
+  const pending = useStore((s) => s.agentsPending);
+  return (
+    <button className="icon-btn ribbon-badge-host" title="Ajanlar (Ctrl+Alt+J)" onClick={() => openView(AGENTS_PATH)}>
+      <Bot size={18} />
+      {pending > 0 && <span className="ribbon-badge">{pending}</span>}
+    </button>
+  );
+}
+
 function Ribbon() {
   const leftView = useStore((s) => s.leftView);
   const leftOpen = useStore((s) => s.leftOpen);
@@ -53,6 +63,7 @@ function Ribbon() {
       <button className="icon-btn" title="Görev panosu (Ctrl+Alt+B)" onClick={() => void openBoard()}><KanbanSquare size={18} /></button>
       <button className="icon-btn" title="HTTP istekleri (Ctrl+Alt+H)" onClick={() => openView(HTTP_PATH)}><Globe size={18} /></button>
       <button className="icon-btn" title="Geliştirici araçları (Ctrl+Alt+A)" onClick={() => openView(TOOLS_PATH)}><Wrench size={18} /></button>
+      <AgentsButton />
       <div className="ribbon-sep" />
       <button className="icon-btn" title="Grafik (Ctrl+Shift+G)" onClick={openGraph}><Network size={18} /></button>
       <button className="icon-btn" title="Günlük not (Ctrl+Alt+D)" onClick={() => void openDaily()}><CalendarDays size={18} /></button>

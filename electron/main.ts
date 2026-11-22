@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 import { Vault } from "./vault";
 import { WELCOME_FILES } from "./welcome";
 import { runSmoke } from "./smoke";
+import * as agents from "./agents";
 
 const SCHEME = "atolye";
 const RENDERER_DIR = path.join(__dirname, "..", "dist");
@@ -34,6 +35,7 @@ type Settings = {
     rightOpen: boolean;
   };
   window: { x?: number; y?: number; width: number; height: number; maximized: boolean };
+  agents?: agents.AgentsConfig;
 };
 
 const DEFAULTS: Settings = {
@@ -373,6 +375,30 @@ function registerIpc(): void {
   handle("app:openExternal", (url: string) => openExternalSafe(url));
   handle("http:send", sendHttp);
   handle("app:version", () => app.getVersion());
+
+  // ---------------------------------------------------------------- ajanlar
+  const agentsCfg = (): agents.AgentsConfig => {
+    if (process.env.ATOLYE_AGENTS) return { repoPath: process.env.ATOLYE_AGENTS, appPath: "" };
+    if (!settings.agents?.repoPath) settings.agents = { ...agents.guessPaths(app.getPath("home")), ...(settings.agents?.appPath ? { appPath: settings.agents.appPath } : {}) };
+    return settings.agents;
+  };
+  handle("agents:config", () => agentsCfg());
+  handle("agents:choose", async (which: "repo" | "app") => {
+    const res = await dialog.showOpenDialog(win!, { title: which === "app" ? "Uygulama reposu (version6)" : "Ajan reposu (basketball-agents)", properties: ["openDirectory"] });
+    if (res.canceled || !res.filePaths[0]) return agentsCfg();
+    settings.agents = { ...agentsCfg(), [which === "app" ? "appPath" : "repoPath"]: res.filePaths[0] };
+    saveSettingsSoon();
+    return settings.agents;
+  });
+  handle("agents:snapshot", () => agents.snapshot(agentsCfg()));
+  handle("agents:read", (rel: string) => agents.readDoc(agentsCfg(), String(rel)));
+  handle("agents:sync", () => agents.sync(agentsCfg()));
+  handle("agents:decide", (name: string, decision: "approved" | "rejected", note: string) => agents.decide(agentsCfg(), String(name), decision, String(note ?? "")));
+  handle("agents:newTask", (title: string, body: string, forWho: "claude" | "agy") => agents.newTask(agentsCfg(), String(title), String(body ?? ""), forWho));
+  handle("agents:note", (text: string, roles: string) => agents.ownerNote(agentsCfg(), String(text), String(roles ?? "")));
+  handle("agents:run", (role: string, task: string) => agents.startRun(agentsCfg(), String(role), String(task ?? ""), (e) => win?.webContents.send("agents:event", e)));
+  handle("agents:runs", () => agents.listRuns());
+  handle("agents:stop", () => agents.stopRun());
 
   handle("export:html", async (html: string, name: string) => {
     const res = await dialog.showSaveDialog(win!, {

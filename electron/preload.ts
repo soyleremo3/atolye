@@ -46,6 +46,20 @@ contextBridge.exposeInMainWorld("atolye", {
   http: {
     send: (req: unknown) => invoke("http:send", req),
   },
+  agents: {
+    config: () => invoke("agents:config"),
+    choose: (which: "repo" | "app") => invoke("agents:choose", which),
+    snapshot: () => invoke("agents:snapshot"),
+    read: (rel: string) => invoke("agents:read", rel),
+    sync: () => invoke("agents:sync"),
+    decide: (name: string, decision: string, note: string) => invoke("agents:decide", name, decision, note),
+    newTask: (title: string, body: string, forWho: string) => invoke("agents:newTask", title, body, forWho),
+    note: (text: string, roles: string) => invoke("agents:note", text, roles),
+    run: (role: string, task: string) => invoke("agents:run", role, task),
+    runs: () => invoke("agents:runs"),
+    stop: () => invoke("agents:stop"),
+    onEvent: (cb: (e: unknown) => void) => on("agents:event", cb),
+  },
   exporter: {
     html: (html: string, name: string) => invoke("export:html", html, name),
     pdf: (html: string, name: string) => invoke("export:pdf", html, name),

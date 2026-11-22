@@ -9,7 +9,7 @@ import {
 } from "./lib/paths";
 import { buildIndex, type VaultIndex } from "./lib/vaultIndex";
 
-export type TabKind = "note" | "drawing" | "image" | "graph" | "code" | "http" | "snippets" | "tools" | "file";
+export type TabKind = "note" | "drawing" | "image" | "graph" | "code" | "http" | "snippets" | "tools" | "agents" | "file";
 export type Tab = { id: string; path: string; kind: TabKind; group: string };
 /** Yan yana duzenleyici bolmesi (VS Code'daki "editor group"). size: genislik orani. */
 export type Group = { id: string; active: string | null; size: number };
@@ -19,7 +19,8 @@ export const GRAPH_PATH = "::graph";
 export const SNIPPETS_PATH = "::snippets";
 export const TOOLS_PATH = "::tools";
 export const HTTP_PATH = "::http";
-const VIEW_PATHS: Record<string, TabKind> = { [GRAPH_PATH]: "graph", [SNIPPETS_PATH]: "snippets", [TOOLS_PATH]: "tools", [HTTP_PATH]: "http" };
+export const AGENTS_PATH = "::agents";
+const VIEW_PATHS: Record<string, TabKind> = { [GRAPH_PATH]: "graph", [SNIPPETS_PATH]: "snippets", [TOOLS_PATH]: "tools", [HTTP_PATH]: "http", [AGENTS_PATH]: "agents" };
 export const isViewPath = (p: string) => p in VIEW_PATHS;
 
 export type Dialog =
@@ -55,6 +56,8 @@ type State = {
   overlay: Overlay;
   dialog: Dialog;
   toast: { id: number; text: string; kind: "info" | "error" } | null;
+  /** Ajanlar: sahibin onayini bekleyen istek sayisi (seritteki rozet). */
+  agentsPending: number;
   searchQuery: string;
   expanded: Record<string, boolean>;
   jump: { path: string; line: number; nonce: number; tab?: string } | null;
@@ -87,6 +90,7 @@ export const useStore = create<State>(() => ({
   overlay: null,
   dialog: null,
   toast: null,
+  agentsPending: 0,
   searchQuery: "",
   expanded: {},
   jump: null,

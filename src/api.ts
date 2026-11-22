@@ -1,5 +1,21 @@
 export type FileEntry = { path: string; name: string; ext: string; dir: boolean; mtime: number; size: number };
 export type ViewMode = "edit" | "split" | "read" | "board";
+export type AgentLive = { role: string; number: string; model: string; state: "idle" | "working" | "done" | "failed" | "blocked"; lastRun: string | null; did: string; next: string; blockedOn: string };
+export type AgentRole = { id: string; number: string; name: string; ad?: string; zaman?: string; agent?: boolean; model: string; team: string; schedule: string; status: "active" | "planned"; live: AgentLive | null };
+export type AgentItem = { name: string; fm: Record<string, string>; body: string };
+export type AgentsConfig = { repoPath: string; appPath: string };
+export type AgentsSnapshot = {
+  repoPath: string;
+  appPath: string;
+  roles: AgentRole[];
+  approvals: { pending: AgentItem[]; decided: AgentItem[] };
+  board: { inbox: AgentItem[]; doing: AgentItem[]; done: AgentItem[]; results: string[] };
+  reports: { kind: string; name: string }[];
+  state: string;
+  commits: { hash: string; date: string; subject: string }[];
+};
+export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
+export type AgentRun = { id: string; role: string; started: number; ended?: number; ok?: boolean; summary?: string; events: AgentRunEvent[] };
 export type HttpRequest = { method: string; url: string; headers: Record<string, string>; body?: string; timeoutMs?: number };
 export type HttpResponse = {
   status?: number;
@@ -69,6 +85,20 @@ type AtolyeApi = {
   };
   http: {
     send(req: HttpRequest): Promise<HttpResponse>;
+  };
+  agents: {
+    config(): Promise<AgentsConfig>;
+    choose(which: "repo" | "app"): Promise<AgentsConfig>;
+    snapshot(): Promise<AgentsSnapshot>;
+    read(rel: string): Promise<string>;
+    sync(): Promise<string>;
+    decide(name: string, decision: "approved" | "rejected", note: string): Promise<string>;
+    newTask(title: string, body: string, forWho: "claude" | "agy"): Promise<string>;
+    note(text: string, roles: string): Promise<string>;
+    run(role: string, task: string): Promise<string>;
+    runs(): Promise<AgentRun[]>;
+    stop(): Promise<boolean>;
+    onEvent(cb: (e: AgentRunEvent) => void): () => void;
   };
   exporter: {
     html(html: string, name: string): Promise<boolean>;

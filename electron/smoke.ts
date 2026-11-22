@@ -64,6 +64,52 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
 
   // Kasaya yazilamazsa (Denetimli klasor erisimi gibi): yedekle, uyar, izin gelince kendiliginden kaydet.
   // Harness "Kilitli.md" dosyasini salt okunur yapar; yeniden adlandirma EPERM verir.
+  // Ajanlar bolumu: ATOLYE_AGENTS=<gecici ajan reposu> ile (gercek repoya dokunmaz)
+  if (phase === "agents") {
+    const repo = process.env.ATOLYE_AGENTS || "";
+    const rd = (rel: string) => { try { return readFileSync(path.join(repo, rel), "utf8"); } catch { return ""; } };
+    try {
+      await wait(2500);
+      await key("J", ["control", "alt"]);
+      await wait(2500);
+      const roles = JSON.parse(rd("roster.json")).roles.length;
+      const cards = await js(`document.querySelectorAll('.ag-card').length`);
+      check("ajanlar: ofis kartları", cards === roles, `${cards}/${roles}`);
+      await shot("ag-01-ofis");
+      const pending = readdirSync(path.join(repo, "approvals", "pending")).filter((n) => n.endsWith(".md"));
+      const badge = await js(`document.querySelector('.ribbon-badge')?.textContent || '0'`);
+      check("ajanlar: onay rozeti", Number(badge) === pending.length, `${badge}/${pending.length}`);
+      await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Onaylar')).click()`);
+      await wait(600);
+      check("ajanlar: bekleyen onaylar", (await js(`document.querySelectorAll('.ag-approval').length`)) === pending.length);
+      await shot("ag-02-onaylar");
+      await js(`[...document.querySelectorAll('.ag-approval .btn.primary')][0]?.click()`);
+      await wait(3500);
+      const moved = rd(`approvals/decided/${pending[0]}`);
+      check("ajanlar: onay kaydedildi", /decision: approved/.test(moved) && !rd(`approvals/pending/${pending[0]}`), moved.split(/\r?\n/).slice(0, 3).join(" | "));
+      await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Pano')).click()`);
+      await wait(600);
+      await js(`document.querySelector('.ag-new input').focus()`);
+      await type("Duman testi gorevi");
+      await js(`document.querySelector('.ag-new button[type=submit]').click()`);
+      await wait(3500);
+      const inbox = readdirSync(path.join(repo, "board", "inbox")).filter((n) => n.includes("duman-testi-gorevi"));
+      check("ajanlar: panoya görev eklendi", inbox.length === 1, inbox.join(","));
+      await shot("ag-03-pano");
+      for (const t of ["Raporlar", "Notlar", "Çalıştır"]) {
+        await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('${t}')).click()`);
+        await wait(500);
+      }
+      await shot("ag-04-calistir");
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    await fs.writeFile(path.join(outDir, "log.txt"), log.join("\n"), "utf8");
+    app.quit();
+    return;
+  }
+
   if (phase === "savefail") {
     try {
       await wait(2500);

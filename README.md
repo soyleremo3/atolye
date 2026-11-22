@@ -1,6 +1,6 @@
 # Atölye
 
-Yazılımcılar için yerel, sade ve hızlı bir çalışma alanı (Windows). Obsidian tarzı notların üstüne geliştiriciye özel beş bölüm:
+Yazılımcılar için yerel, sade ve hızlı bir çalışma alanı (Windows). Obsidian tarzı notların üstüne geliştiriciye özel beş bölüm ve bir Ajanlar ekranı:
 
 | Bölüm | Ne işe yarar | Kısayol |
 |---|---|---|
@@ -27,6 +27,22 @@ Bölmeler ve genişlikleri kapatıp açınca geri gelir. Çizimler tek bölmede 
 Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şablonlar (ADR, hata raporu, API dokümanı, kod incelemesi…), günlük not, PDF/HTML dışa aktarma, açık/koyu tema.
 
 ![Pano](docs/pano.png)
+
+## 🤖 Ajanlar (`Ctrl+Alt+J`)
+
+Basketball APP ajan sistemini (gizli `soyleremo3/basketball-agents` reposu) tek ekranda gösterir:
+
+| Sekme | Ne yapar |
+|---|---|
+| Ofis | Her rol bir kart: model, takvim, son iş, sıradaki iş, takıldığı yer; görev tanımı ve defteri tek tıkla |
+| Onaylar | Ajanların önemli işler için sorduğu onaylar: **Onayla / Reddet** (+ not); şeritte rozet |
+| Pano | İş panosu (bekleyen / yapılıyor / bitti / sonuçlar) ve **yeni görev** ekleme |
+| Raporlar | Günlük, haftalık, aylık raporlar |
+| Notlar | Ajanlara bilgi ver; hangi rollerin bilmesi gerektiğini seç |
+| Çalıştır | Acil işte bir rolü bu PC'de `claude -p` ile **hemen çalıştır** (Claude Pro kotası); aynı anda tek ajan |
+
+Klasörler kendiliğinden bulunur (`Masaüstü/Basketball APP/basketball-agents` ve `version6`); değilse sağ üstteki klasör düğmesinden seçilir. Görünüm açıkken 20 sn'de bir yenilenir, 5 dakikada bir `git pull` yapar; yazılan her karar/görev/not commit edilip gönderilir (internet yoksa sonraki eşitlemede).
+Duman testi: `ATOLYE_AGENTS=<geçici ajan reposu> ATOLYE_SMOKE_PHASE=agents`.
 
 ## Güvenlik
 - Electron güvenlik önerileri: `contextIsolation`, `sandbox`, sıkı CSP, uygulama sadece kendi `atolye://` protokolünden yüklenir.
