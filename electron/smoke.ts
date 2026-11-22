@@ -222,6 +222,39 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     return;
   }
 
+  // Kapanip acilinca duzen ayni gelmeli: acik klasorler, sag/sol panel bolumu, renk temasi
+  if (phase === "session1" || phase === "session2") {
+    try {
+      await wait(2500);
+      if (phase === "session1") {
+        await openQuick("Sistem mimarisi");
+        if (!(await js(`!!document.querySelector('.sidebar.right')`))) await key("R", ["control", "shift"]);
+        await wait(400);
+        await js(`[...document.querySelectorAll('.sidebar.right .seg button')].find(b => b.textContent.includes('Özellikler'))?.click()`);
+        await wait(300);
+        await js(`document.querySelector('.ribbon button[title^="Ayarlar"]')?.click()`);
+        await wait(600);
+        await js(`[...document.querySelectorAll('.palette-card')].find(b => b.textContent.includes('Orman'))?.click()`);
+        await wait(600);
+        check("oturum: tema değişti", (await js(`document.documentElement.dataset.palette`)) === "orman");
+        await shot("ss-01-orman-ayarlar");
+        await key("Escape");
+        await wait(1500);
+      } else {
+        check("oturum: renk teması hatırlandı", (await js(`document.documentElement.dataset.palette`)) === "orman");
+        check("oturum: açık klasör hatırlandı", await js(`[...document.querySelectorAll('.tree-row')].some(r => r.textContent.trim() === 'Sistem mimarisi')`));
+        check("oturum: sağ panel bölümü hatırlandı", await js(`[...document.querySelectorAll('.sidebar.right .seg button.on')].some(b => b.textContent.includes('Özellikler'))`));
+        await shot("ss-02-yeniden-acildi");
+      }
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    await fs.writeFile(path.join(outDir, `log-${phase}.txt`), log.join("\n"), "utf8");
+    app.quit();
+    return;
+  }
+
   if (phase === "savefail") {
     try {
       await wait(2500);

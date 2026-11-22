@@ -165,6 +165,13 @@ export async function init(): Promise<void> {
       ...restored,
       leftOpen: settings.session.leftOpen,
       rightOpen: settings.session.rightOpen,
+      leftView: settings.session.leftView ?? "files",
+      rightView: settings.session.rightView ?? "outline",
+      expanded: Object.fromEntries((settings.session.expanded ?? []).map((p) => [p, true])),
+    });
+    // Panel ve klasor durumu degisince oturumu kaydet
+    useStore.subscribe((s, p) => {
+      if (s.expanded !== p.expanded || s.leftView !== p.leftView || s.rightView !== p.rightView || s.leftOpen !== p.leftOpen || s.rightOpen !== p.rightOpen) saveSession();
     });
     bumpIndex(true);
     await restoreDrafts();
@@ -535,6 +542,9 @@ export function saveSession(now = false): Promise<unknown> | void {
         activeGroup: Math.max(0, s.groups.findIndex((g) => g.id === s.activeGroup)),
         leftOpen: s.leftOpen,
         rightOpen: s.rightOpen,
+        expanded: Object.keys(s.expanded).filter((k) => s.expanded[k]),
+        leftView: s.leftView,
+        rightView: s.rightView,
       },
     });
   };

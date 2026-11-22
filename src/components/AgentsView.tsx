@@ -54,7 +54,22 @@ async function act(p: Promise<string>, after: () => void) {
 }
 
 export function AgentsView({ active }: { active: boolean }) {
-  const [tab, setTab] = useState<TabId>("office");
+  const [tab, setTabState] = useState<TabId>(() => {
+    try {
+      const v = localStorage.getItem("atolye.agents.tab");
+      return (TABS.some((x) => x.id === v) ? v : "office") as TabId;
+    } catch {
+      return "office";
+    }
+  });
+  const setTab = (v: TabId) => {
+    setTabState(v);
+    try {
+      localStorage.setItem("atolye.agents.tab", v);
+    } catch {
+      /* yok sayilir */
+    }
+  };
   const [snap, setSnap] = useState<AgentsSnapshot | null>(null);
   const [cfg, setCfg] = useState<AgentsConfig | null>(null);
   const [error, setError] = useState<string | null>(null);

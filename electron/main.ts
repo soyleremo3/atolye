@@ -33,11 +33,17 @@ type Settings = {
     activeGroup?: number;
     leftOpen: boolean;
     rightOpen: boolean;
+    /** Acik klasorler ve panellerde secili bolum (kapanip acilinca ayni gelsin). */
+    expanded?: string[];
+    leftView?: "files" | "search" | "tags";
+    rightView?: "outline" | "links" | "props";
   };
   window: { x?: number; y?: number; width: number; height: number; maximized: boolean };
   agents?: agents.AgentsConfig;
   /** Yer imleri: kasa icindeki yollar. */
   bookmarks: string[];
+  palette: "kum" | "okyanus" | "orman" | "lavanta" | "klasik";
+  accent: string;
 };
 
 const DEFAULTS: Settings = {
@@ -51,6 +57,8 @@ const DEFAULTS: Settings = {
   session: { tabs: [], active: null, leftOpen: true, rightOpen: true },
   window: { width: 1280, height: 820, maximized: false },
   bookmarks: [],
+  palette: "kum",
+  accent: "",
 };
 
 let settings: Settings = DEFAULTS;
@@ -373,7 +381,7 @@ function handle(channel: string, fn: Handler): void {
 function registerIpc(): void {
   handle("settings:get", () => ({ ...settings, dark: nativeTheme.shouldUseDarkColors }));
   handle("settings:set", (patch: Partial<Settings>) => {
-    const allowed: (keyof Settings)[] = ["theme", "fontSize", "editorFont", "readableWidth", "spellcheck", "defaultMode", "session", "bookmarks"];
+    const allowed: (keyof Settings)[] = ["theme", "fontSize", "editorFont", "readableWidth", "spellcheck", "defaultMode", "session", "bookmarks", "palette", "accent"];
     for (const key of allowed) if (patch && key in patch) (settings as any)[key] = (patch as any)[key];
     if (patch?.theme) {
       nativeTheme.themeSource = settings.theme;

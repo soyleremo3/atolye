@@ -273,6 +273,26 @@ function SettingsDialog() {
               <option value="mono">Cascadia Code (kod)</option>
             </select>
           </label>
+          <div className="setting column">
+            <span>Renk teması</span>
+            <div className="palette-grid">
+              {PALETTES.map((p) => (
+                <button key={p.id} className={`palette-card${(settings.palette ?? "kum") === p.id ? " on" : ""}`} onClick={() => void updateSettings({ palette: p.id })}>
+                  <span className="palette-swatch">{p.colors.map((c) => <i key={c} style={{ background: c }} />)}</span>
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="setting column">
+            <span>Vurgu rengi</span>
+            <div className="accent-row">
+              <button className={`accent-dot none${!settings.accent ? " on" : ""}`} title="Temanın kendi rengi" onClick={() => void updateSettings({ accent: "" })} />
+              {ACCENTS.map((c) => (
+                <button key={c} className={`accent-dot${settings.accent === c ? " on" : ""}`} style={{ background: c }} title={c} onClick={() => void updateSettings({ accent: c })} />
+              ))}
+            </div>
+          </div>
           <label className="setting check">
             <input type="checkbox" checked={settings.readableWidth} onChange={(e) => void updateSettings({ readableWidth: e.target.checked })} />
             <span>Okunabilir satır genişliği</span>
@@ -311,6 +331,15 @@ function SettingsDialog() {
     </div>
   );
 }
+
+const PALETTES: { id: "kum" | "okyanus" | "orman" | "lavanta" | "klasik"; name: string; colors: string[] }[] = [
+  { id: "kum", name: "Kum", colors: ["#fbf8f2", "#efe7d9", "#d9734a", "#3d352e"] },
+  { id: "okyanus", name: "Okyanus", colors: ["#f7fafc", "#e7eef5", "#3d84c6", "#2b3440"] },
+  { id: "orman", name: "Orman", colors: ["#f7f9f5", "#e8eee3", "#4f8a5b", "#2f362d"] },
+  { id: "lavanta", name: "Lavanta", colors: ["#f9f8fc", "#ebe8f4", "#7b6cd5", "#322e3d"] },
+  { id: "klasik", name: "Klasik", colors: ["#1e1f24", "#26282e", "#2dd4bf", "#dcdee4"] },
+];
+const ACCENTS = ["#d9734a", "#e0a43a", "#4f8a5b", "#2f9e94", "#3d84c6", "#7b6cd5", "#c2569a", "#d64545"];
 
 function HistoryDialog({ path }: { path: string }) {
   const close = () => useStore.setState({ dialog: null });

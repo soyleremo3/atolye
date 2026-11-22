@@ -28,6 +28,11 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Görünüm ve oturum (v1.4)
+
+- **Renk teması:** Ayarlar → *Renk teması*: Kum (varsayılan, sıcak krem), Okyanus, Orman, Lavanta, Klasik; her biri açık ve koyu. *Vurgu rengi* ayrıca seçilebilir.
+- **Oturum hatırlanır:** açık sekmeler ve bölmeler, açık klasörler, sol/sağ panelin açık olup olmadığı ve hangi bölümünün seçili olduğu, Ajanlar ekranındaki son sekme.
+
 ## Obsidian'dan gelenler (v1.2)
 
 | Özellik | Nasıl |

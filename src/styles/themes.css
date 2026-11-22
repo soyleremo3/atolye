@@ -1,0 +1,104 @@
+/* ---------------------------------------------------------------- renk temalari (Ayarlar → Renk teması)
+   data-palette = kum | okyanus | orman | lavanta | klasik ; data-theme = light | dark.
+   "klasik" eski renkleri kullanir (bu dosyada kurali yok). Vurgu rengi Ayarlar'dan ayrica secilebilir. */
+
+:root { --radius: 10px; }
+
+/* ---- Kum: sicak krem, kahve, terrakota (ajan ofisiyle uyumlu) */
+:root[data-palette="kum"][data-theme="light"] {
+  --bg: #fbf8f2; --bg-2: #f4eee3; --bg-3: #efe7d9; --bg-hover: #ebe1cf; --bg-active: #e3d6c0;
+  --border: #e9e0d0; --border-strong: #dccfb9;
+  --text: #3d352e; --heading: #2a231d; --muted: #7c6f62; --faint: #b2a594;
+  --accent: #d9734a; --accent-strong: #b85a34; --accent-soft: rgba(217, 115, 74, 0.28);
+  --selection: rgba(217, 115, 74, 0.2); --selection-match: rgba(217, 115, 74, 0.1); --active-line: rgba(120, 90, 60, 0.04);
+  --code-bg: #f3ece0; --code-text: #b24a6b; --tag-bg: rgba(217, 115, 74, 0.12); --tag-text: #b85a34;
+  --shadow: 0 12px 36px rgba(110, 80, 50, 0.14), 0 2px 8px rgba(110, 80, 50, 0.08);
+  --graph-node: #b3a28c; --graph-line: #e4d9c6;
+}
+:root[data-palette="kum"][data-theme="dark"] {
+  --bg: #221e1b; --bg-2: #1b1816; --bg-3: #2a2521; --bg-hover: #312b26; --bg-active: #3a332d;
+  --border: #342e29; --border-strong: #453d36;
+  --text: #e9e0d4; --heading: #f5ede2; --muted: #a8998a; --faint: #74685c;
+  --accent: #ef9468; --accent-strong: #d9734a; --accent-soft: rgba(239, 148, 104, 0.32);
+  --selection: rgba(239, 148, 104, 0.22); --selection-match: rgba(239, 148, 104, 0.12); --active-line: rgba(255, 240, 220, 0.03);
+  --code-bg: #2b2621; --code-text: #f2a7bd; --tag-bg: rgba(239, 148, 104, 0.14); --tag-text: #f4ad8a;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --graph-node: #9c8d7e; --graph-line: #3d362f;
+}
+
+/* ---- Okyanus: sakin mavi */
+:root[data-palette="okyanus"][data-theme="light"] {
+  --bg: #f7fafc; --bg-2: #eef3f8; --bg-3: #e7eef5; --bg-hover: #e1e9f2; --bg-active: #d5e1ee;
+  --border: #e1e8f0; --border-strong: #cfdae6;
+  --text: #2b3440; --heading: #1b2430; --muted: #66768a; --faint: #a5b2c2;
+  --accent: #3d84c6; --accent-strong: #2c6aa6; --accent-soft: rgba(61, 132, 198, 0.26);
+  --selection: rgba(61, 132, 198, 0.18); --selection-match: rgba(61, 132, 198, 0.1); --active-line: rgba(30, 60, 100, 0.035);
+  --code-bg: #edf2f8; --tag-bg: rgba(61, 132, 198, 0.1); --tag-text: #2c6aa6;
+  --graph-node: #9aacc0; --graph-line: #d9e2ec;
+}
+:root[data-palette="okyanus"][data-theme="dark"] {
+  --bg: #161c24; --bg-2: #11161d; --bg-3: #1c2430; --bg-hover: #222c39; --bg-active: #2a3646;
+  --border: #243040; --border-strong: #324155;
+  --text: #dbe4ee; --heading: #eef4fa; --muted: #93a3b6; --faint: #5f6f83;
+  --accent: #6cb3ee; --accent-strong: #3d84c6; --accent-soft: rgba(108, 179, 238, 0.3);
+  --selection: rgba(108, 179, 238, 0.22); --selection-match: rgba(108, 179, 238, 0.12);
+  --code-bg: #1d2633; --tag-bg: rgba(108, 179, 238, 0.13); --tag-text: #8ec6f3;
+  --graph-node: #7f91a6; --graph-line: #2c394a;
+}
+
+/* ---- Orman: adacayi yesili */
+:root[data-palette="orman"][data-theme="light"] {
+  --bg: #f7f9f5; --bg-2: #eff3ec; --bg-3: #e8eee3; --bg-hover: #e2e9dc; --bg-active: #d6e0ce;
+  --border: #e2e8dc; --border-strong: #d0dac7;
+  --text: #2f362d; --heading: #1f261d; --muted: #68745f; --faint: #a7b29d;
+  --accent: #4f8a5b; --accent-strong: #3c6f47; --accent-soft: rgba(79, 138, 91, 0.26);
+  --selection: rgba(79, 138, 91, 0.18); --selection-match: rgba(79, 138, 91, 0.1); --active-line: rgba(40, 70, 40, 0.035);
+  --code-bg: #eef2ea; --tag-bg: rgba(79, 138, 91, 0.1); --tag-text: #3c6f47;
+  --graph-node: #9fac94; --graph-line: #dbe3d4;
+}
+:root[data-palette="orman"][data-theme="dark"] {
+  --bg: #181d19; --bg-2: #131714; --bg-3: #1f2620; --bg-hover: #252d26; --bg-active: #2d372e;
+  --border: #263027; --border-strong: #354236;
+  --text: #dde6da; --heading: #eef5eb; --muted: #95a38f; --faint: #61705d;
+  --accent: #7fc08a; --accent-strong: #4f8a5b; --accent-soft: rgba(127, 192, 138, 0.3);
+  --selection: rgba(127, 192, 138, 0.2); --selection-match: rgba(127, 192, 138, 0.1);
+  --code-bg: #1f2720; --tag-bg: rgba(127, 192, 138, 0.13); --tag-text: #9fd2a8;
+  --graph-node: #82927d; --graph-line: #2f3a30;
+}
+
+/* ---- Lavanta: yumusak mor */
+:root[data-palette="lavanta"][data-theme="light"] {
+  --bg: #f9f8fc; --bg-2: #f2f0f8; --bg-3: #ebe8f4; --bg-hover: #e6e2f1; --bg-active: #dad4eb;
+  --border: #e7e3f1; --border-strong: #d6d0e6;
+  --text: #322e3d; --heading: #221e2d; --muted: #6f6886; --faint: #ada7c0;
+  --accent: #7b6cd5; --accent-strong: #6151bd; --accent-soft: rgba(123, 108, 213, 0.26);
+  --selection: rgba(123, 108, 213, 0.18); --selection-match: rgba(123, 108, 213, 0.1); --active-line: rgba(60, 40, 110, 0.035);
+  --code-bg: #f0edf8; --tag-bg: rgba(123, 108, 213, 0.1); --tag-text: #6151bd;
+  --graph-node: #a8a1c0; --graph-line: #e0dcec;
+}
+:root[data-palette="lavanta"][data-theme="dark"] {
+  --bg: #1c1a24; --bg-2: #16141d; --bg-3: #23202e; --bg-hover: #2a2737; --bg-active: #332f43;
+  --border: #2b2838; --border-strong: #3b374d;
+  --text: #e3e0ee; --heading: #f2f0fa; --muted: #a29db6; --faint: #6c6782;
+  --accent: #a99cf2; --accent-strong: #7b6cd5; --accent-soft: rgba(169, 156, 242, 0.3);
+  --selection: rgba(169, 156, 242, 0.22); --selection-match: rgba(169, 156, 242, 0.12);
+  --code-bg: #24212f; --tag-bg: rgba(169, 156, 242, 0.14); --tag-text: #c1b8f6;
+  --graph-node: #8e88a6; --graph-line: #343046;
+}
+
+/* ---- Ayarlar: tema ve vurgu secicileri */
+.palette-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.palette-card {
+  border: 2px solid var(--border); border-radius: 10px; padding: 6px; background: var(--bg-2); cursor: pointer;
+  display: flex; flex-direction: column; gap: 5px; font: inherit; font-size: 12px; color: var(--text);
+}
+.palette-card.on { border-color: var(--accent); }
+.palette-swatch { height: 34px; border-radius: 6px; display: flex; overflow: hidden; }
+.palette-swatch i { flex: 1; }
+.accent-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.accent-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5); }
+.accent-dot.on { border-color: var(--heading); }
+.accent-dot.none { background: conic-gradient(var(--accent), var(--bg-3), var(--accent)); }
+
+/* ayarlar: sutun duzenli satir */
+.setting.column { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }

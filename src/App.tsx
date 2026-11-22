@@ -93,6 +93,25 @@ export function App() {
     return () => window.removeEventListener("keydown", handleGlobalKey);
   }, []);
 
+  const palette = useStore((s) => s.settings?.palette ?? "kum");
+  const accent = useStore((s) => s.settings?.accent ?? "");
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.palette = palette;
+    // istege bagli vurgu rengi: temanin vurgu degiskenlerini ezer
+    const vars = ["--accent", "--accent-strong", "--accent-soft", "--selection", "--selection-match", "--tag-bg", "--tag-text"];
+    if (/^#[0-9a-f]{6}$/i.test(accent)) {
+      const n = parseInt(accent.slice(1), 16);
+      const rgb = `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+      const vals = [accent, accent, `rgba(${rgb}, 0.3)`, `rgba(${rgb}, 0.2)`, `rgba(${rgb}, 0.1)`, `rgba(${rgb}, 0.12)`, accent];
+      vars.forEach((v, i) => root.style.setProperty(v, vals[i]));
+    } else {
+      vars.forEach((v) => root.style.removeProperty(v));
+    }
+    const css = getComputedStyle(root);
+    void api.settings.setTitlebar(css.getPropertyValue("--bg-2").trim() || "#1b1d23", css.getPropertyValue("--muted").trim() || "#c0c4cc");
+  }, [palette, accent, dark]);
+
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     const css = getComputedStyle(document.documentElement);

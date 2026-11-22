@@ -45,9 +45,16 @@ export type Settings = {
     activeGroup?: number;
     leftOpen: boolean;
     rightOpen: boolean;
+    /** Acik klasorler ve panellerde secili bolum (kapanip acilinca ayni gelsin). */
+    expanded?: string[];
+    leftView?: "files" | "search" | "tags";
+    rightView?: "outline" | "links" | "props";
   };
   dark: boolean;
   bookmarks?: string[];
+  /** Renk temasi ve istege bagli vurgu rengi (#rrggbb, bos = temanin kendi rengi). */
+  palette?: "kum" | "okyanus" | "orman" | "lavanta" | "klasik";
+  accent?: string;
 };
 
 type AtolyeApi = {

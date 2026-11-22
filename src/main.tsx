@@ -13,6 +13,7 @@ import "./styles/atolye.css";
 import "./styles/agents.css";
 import "./styles/features.css";
 import "./styles/office.css";
+import "./styles/themes.css";
 import { App } from "./App";
 import { init } from "./store";
 
