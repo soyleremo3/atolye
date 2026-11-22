@@ -15,6 +15,7 @@ import { HttpView } from "./HttpView";
 import { CodeView, SnippetsView } from "./SnippetsView";
 import { ToolsView } from "./ToolsView";
 import { AgentsView } from "./AgentsView";
+import { TerminalPanel } from "./TerminalPanel";
 import { Editor } from "./Editor";
 import { GraphView } from "./GraphView";
 import { openMenu, type MenuItem } from "./Overlays";
@@ -505,6 +506,7 @@ export function Workspace() {
           })}
         {drag && groups.map((g) => <DropZone key={`d${g.id}`} group={g} col={colOf.get(g.id)!} kind={drag} />)}
       </div>
+      <TerminalPanel />
       <StatusBar />
     </main>
   );

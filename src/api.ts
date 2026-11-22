@@ -16,6 +16,9 @@ export type AgentsSnapshot = {
 };
 export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
 export type AgentRun = { id: string; role: string; started: number; ended?: number; ok?: boolean; summary?: string; events: AgentRunEvent[] };
+export type TermProfile = { id: string; name: string; available: boolean };
+export type TermDir = { id: string; name: string; path: string };
+export type AskEvent = { askId: string; kind: "step" | "answer" | "end" | "error"; text: string };
 export type HttpRequest = { method: string; url: string; headers: Record<string, string>; body?: string; timeoutMs?: number };
 export type HttpResponse = {
   status?: number;
@@ -111,6 +114,21 @@ type AtolyeApi = {
     runs(): Promise<AgentRun[]>;
     stop(): Promise<boolean>;
     onEvent(cb: (e: AgentRunEvent) => void): () => void;
+  };
+  term: {
+    profiles(): Promise<TermProfile[]>;
+    dirs(): Promise<TermDir[]>;
+    create(profile: string, cwd: string, cols: number, rows: number): Promise<number>;
+    write(id: number, data: string): Promise<void>;
+    resize(id: number, cols: number, rows: number): Promise<void>;
+    kill(id: number): Promise<void>;
+    onData(cb: (id: number, data: string) => void): () => void;
+    onExit(cb: (id: number, code: number) => void): () => void;
+  };
+  assistant: {
+    ask(question: string, scope: "notes" | "vault", model: "haiku" | "sonnet" | "opus"): Promise<string>;
+    stop(): Promise<boolean>;
+    onEvent(cb: (e: AskEvent) => void): () => void;
   };
   exporter: {
     html(html: string, name: string): Promise<boolean>;

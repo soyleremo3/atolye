@@ -64,6 +64,29 @@ contextBridge.exposeInMainWorld("atolye", {
     stop: () => invoke("agents:stop"),
     onEvent: (cb: (e: unknown) => void) => on("agents:event", cb),
   },
+  term: {
+    profiles: () => invoke("term:profiles"),
+    dirs: () => invoke("term:dirs"),
+    create: (profile: string, cwd: string, cols: number, rows: number) => invoke("term:create", profile, cwd, cols, rows),
+    write: (id: number, data: string) => invoke("term:write", id, data),
+    resize: (id: number, cols: number, rows: number) => invoke("term:resize", id, cols, rows),
+    kill: (id: number) => invoke("term:kill", id),
+    onData: (cb: (id: number, data: string) => void) => {
+      const l = (_e: IpcRendererEvent, id: number, data: string) => cb(id, data);
+      ipcRenderer.on("term:data", l);
+      return () => ipcRenderer.removeListener("term:data", l);
+    },
+    onExit: (cb: (id: number, code: number) => void) => {
+      const l = (_e: IpcRendererEvent, id: number, code: number) => cb(id, code);
+      ipcRenderer.on("term:exit", l);
+      return () => ipcRenderer.removeListener("term:exit", l);
+    },
+  },
+  assistant: {
+    ask: (question: string, scope: string, model: string) => invoke("assistant:ask", question, scope, model),
+    stop: () => invoke("assistant:stop"),
+    onEvent: (cb: (e: unknown) => void) => on("assistant:event", cb),
+  },
   exporter: {
     html: (html: string, name: string) => invoke("export:html", html, name),
     pdf: (html: string, name: string) => invoke("export:pdf", html, name),

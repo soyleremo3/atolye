@@ -42,3 +42,23 @@
 
 /* sag panel sekmeleri tek satir */
 .sidebar.right .seg button { white-space: nowrap; font-size: 12px; }
+
+/* ---------------------------------------------------------------- terminal paneli */
+.term-panel { position: relative; flex: none; display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--bg-2); min-height: 120px; }
+.term-drag { position: absolute; top: -3px; left: 0; right: 0; height: 6px; cursor: ns-resize; z-index: 2; }
+.term-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--border); position: relative; }
+.term-label { display: flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.term-tabs { display: flex; gap: 2px; flex: 1; overflow-x: auto; }
+.term-tab { display: flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.term-tab.on { background: var(--bg-active); color: var(--heading); }
+.term-tab.exited { opacity: 0.55; }
+.term-tab-x { display: grid; place-items: center; opacity: 0.6; }
+.term-new { position: relative; display: flex; }
+.term-menu { position: absolute; top: 30px; right: 0; z-index: 10; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; display: flex; flex-direction: column; min-width: 200px; }
+.term-menu button { text-align: left; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.term-menu button:hover:not(:disabled) { background: var(--bg-hover); }
+.term-menu button:disabled { color: var(--faint); cursor: default; }
+.term-dir { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 12px; padding: 2px 6px; }
+.term-host { flex: 1; min-height: 0; position: relative; padding: 4px 0 0 8px; }
+.term-view { position: absolute; inset: 4px 0 0 8px; }
+.term-empty { color: var(--faint); font-size: 13px; padding: 12px; }

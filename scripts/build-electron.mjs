@@ -6,7 +6,7 @@ const common = {
   platform: "node",
   format: "cjs",
   target: "node22",
-  external: ["electron"],
+  external: ["electron", "@lydell/node-pty"],
   sourcemap: false,
   minify: true,
   logLevel: "warning",

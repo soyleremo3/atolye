@@ -12,6 +12,8 @@ import { Vault } from "./vault";
 import { WELCOME_FILES } from "./welcome";
 import { runSmoke } from "./smoke";
 import * as agents from "./agents";
+import * as terminal from "./terminal";
+import * as assistant from "./assistant";
 
 const SCHEME = "atolye";
 const RENDERER_DIR = path.join(__dirname, "..", "dist");
@@ -462,6 +464,33 @@ function registerIpc(): void {
   handle("agents:runs", () => agents.listRuns());
   handle("agents:stop", () => agents.stopRun());
 
+  // ---------------------------------------------------------------- terminal
+  handle("term:profiles", () => terminal.profiles());
+  handle("term:dirs", () => {
+    const c = agentsCfg();
+    return [
+      { id: "vault", name: `Kasa (${path.basename(requireVault().root)})`, path: requireVault().root },
+      ...(c.repoPath ? [{ id: "agents", name: "Ajan reposu", path: c.repoPath }] : []),
+      ...(c.appPath ? [{ id: "app", name: "Uygulama (version6)", path: c.appPath }] : []),
+      { id: "home", name: "Kullanıcı klasörü", path: app.getPath("home") },
+    ];
+  });
+  handle("term:create", (profile: string, cwd: string, cols: number, rows: number) =>
+    terminal.create(String(profile), String(cwd ?? ""), Number(cols), Number(rows),
+      (id, data) => win?.webContents.send("term:data", id, data),
+      (id, code) => win?.webContents.send("term:exit", id, code)));
+  handle("term:write", (id: number, data: string) => terminal.write(Number(id), String(data)));
+  handle("term:resize", (id: number, cols: number, rows: number) => terminal.resize(Number(id), Number(cols), Number(rows)));
+  handle("term:kill", (id: number) => terminal.kill(Number(id)));
+
+  // ---------------------------------------------------------------- not asistani
+  handle("assistant:ask", (question: string, scope: "notes" | "vault", model: string) => {
+    const root = requireVault().root;
+    const dir = scope === "notes" ? path.join(root, "Notlarım") : root;
+    return assistant.ask(String(question), dir, scope === "notes" ? "Notlarım klasörü" : "tüm kasa", String(model), (e) => win?.webContents.send("assistant:event", e));
+  });
+  handle("assistant:stop", () => assistant.stop());
+
   handle("export:html", async (html: string, name: string) => {
     const res = await dialog.showSaveDialog(win!, {
       title: "HTML olarak dışa aktar",
@@ -599,6 +628,7 @@ async function start(): Promise<void> {
   nativeTheme.on("updated", () => win?.webContents.send("theme:changed", nativeTheme.shouldUseDarkColors));
   app.on("window-all-closed", () => app.quit());
   app.on("before-quit", () => {
+    terminal.killAll();
     vault?.unwatch();
     void saveSettingsNow();
   });

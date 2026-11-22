@@ -9,6 +9,9 @@ files:
   - dist-electron/**/*
   - build/icon.png
   - package.json
+  - node_modules/@lydell/**/*
+asarUnpack:
+  - node_modules/@lydell/**/*
 asar: true
 npmRebuild: false
 win:

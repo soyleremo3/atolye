@@ -1,4 +1,5 @@
 /** Komut paleti ve klavye kisayollari tek listeden beslenir. */
+import { toggleTerminal } from "../components/TerminalPanel";
 import { api } from "../api";
 import {
   activeTab, changeVault, closeTab, closeTabs, cycleTab, equalizeGroups, focusGroupAt, moveTabToSide, splitTab, flushAll, HTTP_PATH, modeOf, navigate, newBoard, newDrawing, newFolder, newNote, newRequestFile,
@@ -32,6 +33,7 @@ export const COMMANDS: Command[] = [
   { id: "board.new", title: "Yeni görev panosu", keys: "Ctrl+Alt+N", run: () => newBoard() },
   { id: "http", title: "HTTP istekleri", keys: "Ctrl+Alt+H", run: () => openView(HTTP_PATH) },
   { id: "http.new", title: "Yeni HTTP istek dosyası", run: newRequestFile },
+  { id: "terminal", title: "Terminal paneli (aç / kapat)", keys: "Ctrl+J", run: () => toggleTerminal() },
   { id: "bookmark", title: "Yer imine ekle / çıkar", keys: "Ctrl+Alt+M", run: () => toggleBookmark() },
   { id: "history", title: "Dosya geçmişi (eski sürümler)", keys: "Ctrl+Alt+Y", run: () => openHistory() },
   { id: "agents", title: "Ajanlar (ofis, onaylar, pano, raporlar)", keys: "Ctrl+Alt+J", run: () => openView(AGENTS_PATH) },
