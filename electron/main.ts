@@ -42,6 +42,8 @@ type Settings = {
   };
   window: { x?: number; y?: number; width: number; height: number; maximized: boolean };
   agents?: agents.AgentsConfig;
+  /** Terminal icin elle eklenen proje klasorleri. */
+  termProjects?: string[];
   /** Yer imleri: kasa icindeki yollar. */
   bookmarks: string[];
   palette: "kum" | "okyanus" | "orman" | "lavanta" | "klasik";
@@ -466,14 +468,44 @@ function registerIpc(): void {
 
   // ---------------------------------------------------------------- terminal
   handle("term:profiles", () => terminal.profiles());
-  handle("term:dirs", () => {
+  // projeler: uygulama reposu en basta (varsayilan), sonra eklenenler, Masaustundeki git repolari, kasa, ev
+  const termDirs = () => {
     const c = agentsCfg();
-    return [
-      { id: "vault", name: `Kasa (${path.basename(requireVault().root)})`, path: requireVault().root },
-      ...(c.repoPath ? [{ id: "agents", name: "Ajan reposu", path: c.repoPath }] : []),
-      ...(c.appPath ? [{ id: "app", name: "Uygulama (version6)", path: c.appPath }] : []),
-      { id: "home", name: "Kullanıcı klasörü", path: app.getPath("home") },
-    ];
+    const list: { id: string; name: string; path: string; group: string; removable?: boolean }[] = [];
+    const seen = new Set<string>();
+    const add = (id: string, name: string, p: string, group: string, removable = false) => {
+      if (!p) return;
+      const key = path.resolve(p).toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      list.push({ id, name, path: p, group, ...(removable ? { removable } : {}) });
+    };
+    if (c.appPath) add("app", `Uygulama (${path.basename(c.appPath)})`, c.appPath, "Projelerim");
+    for (const p of settings.termProjects ?? []) add(`p:${p}`, path.basename(p), p, "Projelerim", true);
+    if (c.repoPath) add("agents", "Ajan reposu", c.repoPath, "Projelerim");
+    for (const p of terminal.findProjects(app.getPath("home"))) {
+      const parent = path.dirname(p);
+      const onDesk = parent === path.join(app.getPath("home"), "Desktop");
+      add(`p:${p}`, onDesk ? path.basename(p) : `${path.basename(p)}  ·  ${path.basename(parent)}`, p, "Masaüstündeki repolar");
+    }
+    add("vault", `Kasa (${path.basename(requireVault().root)})`, requireVault().root, "Diğer");
+    add("home", "Kullanıcı klasörü", app.getPath("home"), "Diğer");
+    return list;
+  };
+  handle("term:dirs", () => termDirs());
+  handle("term:addDir", async () => {
+    const res = await dialog.showOpenDialog(win!, { title: "Terminal için proje klasörü seç", properties: ["openDirectory"] });
+    const p = res.canceled ? "" : (res.filePaths[0] ?? "");
+    if (p) {
+      settings.termProjects = [p, ...(settings.termProjects ?? []).filter((x) => x !== p)].slice(0, 20);
+      saveSettingsSoon();
+    }
+    return { dirs: termDirs(), added: p ? `p:${p}` : "" };
+  });
+  handle("term:removeDir", (p: string) => {
+    settings.termProjects = (settings.termProjects ?? []).filter((x) => x !== String(p));
+    saveSettingsSoon();
+    return termDirs();
   });
   handle("term:create", (profile: string, cwd: string, cols: number, rows: number) =>
     terminal.create(String(profile), String(cwd ?? ""), Number(cols), Number(rows),

@@ -58,7 +58,22 @@
 .term-menu button { text-align: left; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
 .term-menu button:hover:not(:disabled) { background: var(--bg-hover); }
 .term-menu button:disabled { color: var(--faint); cursor: default; }
-.term-dir { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 12px; padding: 2px 6px; }
+.term-proj { position: relative; }
+.term-proj-btn { display: flex; align-items: center; gap: 5px; max-width: 240px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 12px; padding: 3px 8px; cursor: pointer; }
+.term-proj-btn:hover { border-color: var(--accent); }
+.term-proj-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-menu.term-proj-menu { top: auto; bottom: 32px; min-width: 340px; overflow-y: auto; }
+.term-proj-search { margin: 2px 2px 4px; font-size: 13px; padding: 6px 8px; }
+.term-proj-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); padding: 8px 10px 4px; }
+.term-proj-row { display: flex; align-items: center; gap: 2px; border-radius: 6px; padding-right: 4px; }
+.term-proj-row:hover, .term-proj-row.on { background: var(--bg-hover); }
+.term-proj-row .icon-btn { opacity: .35; }
+.term-proj-row:hover .icon-btn { opacity: 1; }
+.term-menu .term-proj-pick { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.term-menu .term-proj-pick:hover { background: none; }
+.term-proj-check { width: 14px; flex: none; display: inline-flex; color: var(--accent); }
+.term-proj-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-menu .term-proj-add { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); margin-top: 4px; color: var(--accent); }
 .term-host { flex: 1; min-height: 0; position: relative; padding: 4px 0 0 8px; }
 .term-view { position: absolute; inset: 4px 0 0 8px; }
 .term-empty { color: var(--faint); font-size: 13px; padding: 12px; }

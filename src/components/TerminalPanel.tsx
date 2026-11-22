@@ -7,7 +7,7 @@ import { create } from "zustand";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { ChevronDown, Plus, SquareTerminal, Trash2, X } from "lucide-react";
+import { Bot, Check, ChevronDown, Folder, FolderPlus, Plus, SquareTerminal, Trash2, X } from "lucide-react";
 import { api, type TermDir, type TermProfile } from "../api";
 import { toast } from "../store";
 
@@ -52,13 +52,30 @@ function themeFromCss() {
   };
 }
 
+/** Sekme basligi icin kisa klasor adi: "version6", "Atolye", "Kasa". */
+function shortName(d: TermDir): string {
+  const m = /^Uygulama \((.*)\)$/.exec(d.name);
+  if (m) return m[1];
+  return d.name.split("  ·  ")[0].replace(/ \(.*\)$/, "");
+}
+
 export function TerminalPanel() {
   const open = useTerminal((s) => s.open);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [active, setActive] = useState<number | null>(null);
   const [profiles, setProfiles] = useState<TermProfile[]>([]);
   const [dirs, setDirs] = useState<TermDir[]>([]);
-  const [dir, setDir] = useState<string>(ls.get(LS_DIR) ?? "vault");
+  const [dir, setDirState] = useState<string>(ls.get(LS_DIR) ?? "app");
+  const [projMenu, setProjMenu] = useState(false);
+  const setDir = (id: string) => {
+    setDirState(id);
+    ls.set(LS_DIR, id);
+  };
+  // kayitli secim listede yoksa (silinmis klasor) uygulama reposu, o da yoksa ilk klasor
+  const curDir = dirs.find((d) => d.id === dir) ?? dirs.find((d) => d.id === "app") ?? dirs[0];
+  const [projQuery, setProjQuery] = useState("");
+  const q = projQuery.trim().toLocaleLowerCase("tr");
+  const shown = q ? dirs.filter((d) => `${d.name} ${d.path}`.toLocaleLowerCase("tr").includes(q)) : dirs;
   const [menu, setMenu] = useState(false);
   const [height, setHeight] = useState(() => Number(ls.get(LS_HEIGHT)) || 280);
   const sessions = useRef(new Map<number, Session>());
@@ -79,9 +96,11 @@ export function TerminalPanel() {
     };
   }, []);
 
-  const newTab = async (profile: string) => {
+  const newTab = async (profile: string, dirId?: string) => {
     setMenu(false);
-    const cwd = dirs.find((d) => d.id === dir)?.path ?? "";
+    setProjMenu(false);
+    const target = (dirId ? dirs.find((d) => d.id === dirId) : null) ?? curDir;
+    const cwd = target?.path ?? "";
     const term = new Terminal({ fontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace', fontSize: 13, cursorBlink: true, theme: themeFromCss(), allowProposedApi: false, scrollback: 5000 });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -121,7 +140,8 @@ export function TerminalPanel() {
     });
     sessions.current.set(id, { term, fit, el });
     const name = profiles.find((p) => p.id === profile)?.name ?? profile;
-    setTabs((t) => [...t, { id, title: name, profile, exited: false }]);
+    const where = target ? shortName(target) : "";
+    setTabs((t) => [...t, { id, title: where ? `${name} · ${where}` : name, profile, exited: false }]);
     setActive(id);
   };
 
@@ -219,7 +239,7 @@ export function TerminalPanel() {
         </div>
         <div className="term-new">
           <button className="icon-btn" title="Yeni PowerShell" onClick={() => void newTab("powershell")}><Plus size={15} /></button>
-          <button className="icon-btn" title="Terminal türü seç" onClick={() => setMenu(!menu)}><ChevronDown size={15} /></button>
+          <button className="icon-btn" title="Terminal türü seç" onClick={() => { setMenu(!menu); setProjMenu(false); }}><ChevronDown size={15} /></button>
           {menu && (
             <div className="term-menu" onMouseLeave={() => setMenu(false)}>
               {profiles.map((p) => (
@@ -230,9 +250,56 @@ export function TerminalPanel() {
             </div>
           )}
         </div>
-        <select className="term-dir" value={dir} title="Yeni terminallerin açılacağı klasör" onChange={(e) => { setDir(e.target.value); ls.set(LS_DIR, e.target.value); }}>
-          {dirs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
+        <div className="term-proj">
+          <button className="term-proj-btn" title={curDir ? `Yeni terminaller burada açılır: ${curDir.path}` : "Klasör"} onClick={() => { setProjMenu(!projMenu); setProjQuery(""); setMenu(false); }}>
+            <Folder size={13} /> <span>{curDir?.name ?? "Klasör"}</span> <ChevronDown size={13} />
+          </button>
+          {projMenu && (
+            <div
+              className="term-menu term-proj-menu"
+              style={{ maxHeight: Math.max(220, (host.current?.parentElement?.getBoundingClientRect().top ?? 600) - 60) }}
+              onMouseLeave={() => setProjMenu(false)}
+            >
+              <input
+                className="text-input term-proj-search"
+                autoFocus
+                placeholder="Proje ara… (Enter: ilkini seç)"
+                value={projQuery}
+                onChange={(e) => setProjQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setProjMenu(false);
+                  if (e.key === "Enter" && shown[0]) {
+                    setDir(shown[0].id);
+                    setProjMenu(false);
+                  }
+                }}
+              />
+              {[...new Set(shown.map((d) => d.group))].map((g) => (
+                <div key={g}>
+                  <div className="term-proj-head">{g}</div>
+                  {shown.filter((d) => d.group === g).map((d) => (
+                    <div key={d.id} className={`term-proj-row${d.id === curDir?.id ? " on" : ""}`}>
+                      <button className="term-proj-pick" title={d.path} onClick={() => { setDir(d.id); setProjMenu(false); }}>
+                        <span className="term-proj-check">{d.id === curDir?.id && <Check size={13} />}</span>
+                        <span className="term-proj-name">{d.name}</span>
+                      </button>
+                      <button className="icon-btn" title="Burada PowerShell aç" onClick={() => { setDir(d.id); void newTab("powershell", d.id); }}><SquareTerminal size={13} /></button>
+                      {profiles.find((p) => p.id === "claude")?.available && (
+                        <button className="icon-btn" title="Burada Claude Code aç" onClick={() => { setDir(d.id); void newTab("claude", d.id); }}><Bot size={13} /></button>
+                      )}
+                      {d.removable && (
+                        <button className="icon-btn" title="Listeden çıkar (klasör silinmez)" onClick={() => void api.term.removeDir(d.path).then(setDirs)}><X size={12} /></button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <button className="term-proj-add" onClick={() => void api.term.addDir().then((r) => { setDirs(r.dirs); if (r.added) setDir(r.added); setProjMenu(false); })}>
+                <FolderPlus size={13} /> Klasör ekle…
+              </button>
+            </div>
+          )}
+        </div>
         {active != null && <button className="icon-btn" title="Bu terminali kapat" onClick={() => closeTab(active)}><Trash2 size={14} /></button>}
         <button className="icon-btn" title="Paneli gizle (Ctrl+J) — terminaller çalışmaya devam eder" onClick={() => toggleTerminal(false)}><X size={15} /></button>
       </header>

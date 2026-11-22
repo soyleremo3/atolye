@@ -17,7 +17,7 @@ export type AgentsSnapshot = {
 export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
 export type AgentRun = { id: string; role: string; started: number; ended?: number; ok?: boolean; summary?: string; events: AgentRunEvent[] };
 export type TermProfile = { id: string; name: string; available: boolean };
-export type TermDir = { id: string; name: string; path: string };
+export type TermDir = { id: string; name: string; path: string; group: string; removable?: boolean };
 export type AskEvent = { askId: string; kind: "step" | "answer" | "end" | "error"; text: string };
 export type HttpRequest = { method: string; url: string; headers: Record<string, string>; body?: string; timeoutMs?: number };
 export type HttpResponse = {
@@ -118,6 +118,8 @@ type AtolyeApi = {
   term: {
     profiles(): Promise<TermProfile[]>;
     dirs(): Promise<TermDir[]>;
+    addDir(): Promise<{ dirs: TermDir[]; added: string }>;
+    removeDir(path: string): Promise<TermDir[]>;
     create(profile: string, cwd: string, cols: number, rows: number): Promise<number>;
     write(id: number, data: string): Promise<void>;
     resize(id: number, cols: number, rows: number): Promise<void>;

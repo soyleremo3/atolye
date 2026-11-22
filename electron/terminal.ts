@@ -3,7 +3,7 @@
  * renderer yalniz profil adini, klasoru ve kullanicinin yazdiklarini gonderir.
  * Claude Code / Antigravity / Codex: PowerShell icinde o komutla acilir (kapaninca kabuk kalir).
  */
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { IPty } from "@lydell/node-pty";
 
@@ -33,6 +33,30 @@ function specs(): Record<string, { name: string; spec: Spec | null }> {
     bash: { name: "Git Bash", spec: bash ? { file: bash, args: ["--login", "-i"] } : null },
     cmd: { name: "Komut İstemi", spec: { file: path.join(sys, "System32", "cmd.exe"), args: [] } },
   };
+}
+
+/** Masaustunde (2 seviye derinlige kadar) .git iceren klasorler: hizli proje secimi icin. */
+export function findProjects(home: string, limit = 30): string[] {
+  const out: string[] = [];
+  const desk = path.join(home, "Desktop");
+  const kids = (dir: string): string[] => {
+    try {
+      return readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && !d.name.startsWith(".") && d.name !== "node_modules")
+        .map((d) => path.join(dir, d.name));
+    } catch {
+      return [];
+    }
+  };
+  for (const a of kids(desk)) {
+    if (out.length >= limit) break;
+    if (existsSync(path.join(a, ".git"))) {
+      out.push(a);
+      continue;
+    }
+    for (const b of kids(a)) if (out.length < limit && existsSync(path.join(b, ".git"))) out.push(b);
+  }
+  return out;
 }
 
 export function profiles(): TermProfile[] {

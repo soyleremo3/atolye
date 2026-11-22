@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld("atolye", {
   term: {
     profiles: () => invoke("term:profiles"),
     dirs: () => invoke("term:dirs"),
+    addDir: () => invoke("term:addDir"),
+    removeDir: (p: string) => invoke("term:removeDir", p),
     create: (profile: string, cwd: string, cols: number, rows: number) => invoke("term:create", profile, cwd, cols, rows),
     write: (id: number, data: string) => invoke("term:write", id, data),
     resize: (id: number, cols: number, rows: number) => invoke("term:resize", id, cols, rows),
