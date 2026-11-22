@@ -28,6 +28,14 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Performans (v1.6)
+
+- Açılış dosyası 2,4 MB → 0,75 MB: 3B ofis, terminal, grafik, araçlar, pano ve dışa aktarma ilk açıldıklarında yüklenir (düğmenin üstüne gelince önceden indirilir). KaTeX ve kod renklendirme açılıştan sonra boş anda yüklenir.
+- 3B ofis: gizliyken tamamen durur, boştayken 30 kare/sn (sürüklerken tam hız); 30 sn gizli kalırsa sahne kapanır, ~300 MB bellek geri gelir.
+- Tam metin arama dizini boş anlarda parça parça kurulur (2000 notta açılıştaki 1 sn'lik donma kalktı); arama yapılınca eksik kısım hemen tamamlanır.
+- Paket yalnız Türkçe ve İngilizce Chromium dil dosyalarını içerir (−48 MB).
+- Ölçüm: `ATOLYE_SMOKE_PHASE=perf` → `perf.json` (açılış, bellek, boşta CPU, uzun görevler, yazma); `ATOLYE_PERF_PROFILE=start` açılışın CPU profilini kaydeder.
+
 ## Terminal ve Not Asistanı (v1.5)
 
 - **Terminal** (`Ctrl+J` ya da şeritteki terminal simgesi): VS Code gibi alt panel, sekmeler. *+* yeni PowerShell; *▾* Claude Code, Antigravity (agy), Codex, Git Bash, Komut İstemi. Terminal varsayılan olarak uygulama projesinde (version6) açılır. Klasör düğmesi hızlı proje menüsü açar: Projelerim, Masaüstündeki git repoları (otomatik bulunur), kasa; arama kutusu, her satırda *burada PowerShell* ve *burada Claude Code* düğmeleri, *Klasör ekle…*. Panel gizlenince terminaller çalışmaya devam eder. Ctrl+C seçiliyse kopyalar, Ctrl+V yapıştırır.
