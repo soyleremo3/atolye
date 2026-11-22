@@ -3,7 +3,7 @@
  * Git Bash, Komut Istemi), klasor secimi, yeniden boyutlandirma. Panel gizlenince oturumlar yasamaya devam eder.
  */
 import { useEffect, useRef, useState } from "react";
-import { create } from "zustand";
+import { toggleTerminal, useTerminal } from "../lib/terminalState";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -11,7 +11,6 @@ import { Bot, Check, ChevronDown, Folder, FolderPlus, Plus, SquareTerminal, Tras
 import { api, type TermDir, type TermProfile } from "../api";
 import { toast } from "../store";
 
-const LS_OPEN = "atolye.term.open";
 const LS_HEIGHT = "atolye.term.height";
 const LS_DIR = "atolye.term.dir";
 const ls = {
@@ -31,12 +30,7 @@ const ls = {
   },
 };
 
-export const useTerminal = create<{ open: boolean }>(() => ({ open: ls.get(LS_OPEN) === "1" }));
-export function toggleTerminal(force?: boolean): void {
-  const open = force ?? !useTerminal.getState().open;
-  useTerminal.setState({ open });
-  ls.set(LS_OPEN, open ? "1" : "0");
-}
+export { toggleTerminal, useTerminal };
 
 type Tab = { id: number; title: string; profile: string; exited: boolean };
 type Session = { term: Terminal; fit: FitAddon; el: HTMLDivElement };

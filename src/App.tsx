@@ -14,7 +14,24 @@ import { Overlays } from "./components/Overlays";
 import { RightPanel } from "./components/RightPanel";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
-import { toggleTerminal } from "./components/TerminalPanel";
+import { toggleTerminal } from "./lib/terminalState";
+
+// Agir gorunumler fare dugmenin uzerine gelince indirilmeye baslar: tiklayinca beklemeden acilir.
+const once = (load: () => Promise<unknown>) => {
+  let done = false;
+  return () => {
+    if (!done) {
+      done = true;
+      void load();
+    }
+  };
+};
+const prefetch = {
+  agents: once(() => import("./components/AgentsView")),
+  terminal: once(() => import("./components/TerminalPanel")),
+  graph: once(() => import("./components/GraphView")),
+  drawing: once(() => import("./components/DrawingView")),
+};
 
 function TitleBar() {
   const vault = useStore((s) => s.vault);
@@ -43,7 +60,7 @@ function TitleBar() {
 function AgentsButton() {
   const pending = useStore((s) => s.agentsPending);
   return (
-    <button className="icon-btn ribbon-badge-host" title="Ajanlar (Ctrl+Alt+J)" onClick={() => openView(AGENTS_PATH)}>
+    <button className="icon-btn ribbon-badge-host" title="Ajanlar (Ctrl+Alt+J)" onMouseEnter={prefetch.agents} onClick={() => openView(AGENTS_PATH)}>
       <Bot size={18} />
       {pending > 0 && <span className="ribbon-badge">{pending}</span>}
     </button>
@@ -66,11 +83,11 @@ function Ribbon() {
       <button className="icon-btn" title="Geliştirici araçları (Ctrl+Alt+A)" onClick={() => openView(TOOLS_PATH)}><Wrench size={18} /></button>
       <AgentsButton />
       <button className="icon-btn" title="Not Asistanı (Ctrl+Alt+K)" onClick={() => openView(ASSISTANT_PATH)}><NotebookPen size={18} /></button>
-      <button className="icon-btn" title="Terminal (Ctrl+J)" onClick={() => toggleTerminal()}><SquareTerminal size={18} /></button>
+      <button className="icon-btn" title="Terminal (Ctrl+J)" onMouseEnter={prefetch.terminal} onClick={() => toggleTerminal()}><SquareTerminal size={18} /></button>
       <div className="ribbon-sep" />
-      <button className="icon-btn" title="Grafik (Ctrl+Shift+G)" onClick={openGraph}><Network size={18} /></button>
+      <button className="icon-btn" title="Grafik (Ctrl+Shift+G)" onMouseEnter={prefetch.graph} onClick={openGraph}><Network size={18} /></button>
       <button className="icon-btn" title="Günlük not (Ctrl+Alt+D)" onClick={() => void openDaily()}><CalendarDays size={18} /></button>
-      <button className="icon-btn" title="Yeni çizim (Ctrl+Shift+N)" onClick={() => newDrawing()}><PenTool size={18} /></button>
+      <button className="icon-btn" title="Yeni çizim (Ctrl+Shift+N)" onMouseEnter={prefetch.drawing} onClick={() => newDrawing()}><PenTool size={18} /></button>
       <button className="icon-btn" title="Komut paleti (Ctrl+P)" onClick={() => useStore.setState({ overlay: "commands" })}><Command size={18} /></button>
       <div className="ribbon-fill" />
       <button className="icon-btn" title="Kasa klasörünü aç" onClick={() => void api.vault.openFolder()}><FolderOpen size={18} /></button>

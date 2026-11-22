@@ -3,27 +3,46 @@ import {
   ArrowLeftToLine, ArrowRightToLine, BookOpen, Braces, CalendarDays, Code2, Columns2, Download, ExternalLink, FilePlus, FileText, Globe,
   Image as ImageIcon, KanbanSquare, MoreHorizontal, Network, PenLine, PenTool, Pencil, SquareSplitHorizontal, Trash2, Wrench, X, Bot, NotebookPen } from "lucide-react";
 import { api, vaultUrl, type ViewMode } from "../api";
-import { exportNote } from "../lib/exporter";
 import { basename, dirname, isBoardNote, title } from "../lib/paths";
 import {
   closeTab, closeTabs, deletePath, focusGroup, groupTabs, HTTP_PATH, isDark, isViewPath, moveTabToSide, moveToNewGroup, newBoard, newDrawing, newNote,
   newSnippet, openBoard, openDaily, openPath, openView, placeTab, renamePath, resizeGroups, equalizeGroups, setActive, setMode, splitTab,
   TOOLS_PATH, useIndex, useStore, type Group, type Side, type Tab,
 } from "../store";
-import { BoardView } from "./BoardView";
-import { HttpView } from "./HttpView";
-import { CodeView, SnippetsView } from "./SnippetsView";
-import { ToolsView } from "./ToolsView";
-import { AgentsView } from "./AgentsView";
-import { AssistantView } from "./AssistantView";
-import { TerminalPanel } from "./TerminalPanel";
+import { useTerminal } from "../lib/terminalState";
 import { Editor } from "./Editor";
-import { GraphView } from "./GraphView";
 import { openMenu, type MenuItem } from "./Overlays";
 import { Preview } from "./Preview";
 import { DRAG_TYPE as PATH_TYPE } from "./Sidebar";
 
+// Agir gorunumler ilk acildiklarinda yuklenir (3B ofis = three.js, terminal = xterm, cizim = Excalidraw):
+// uygulama acilisi yalniz not duzenleyiciyi ve onizlemeyi yukler.
 const DrawingView = lazy(() => import("./DrawingView"));
+const BoardView = lazy(() => import("./BoardView").then((m) => ({ default: m.BoardView })));
+const HttpView = lazy(() => import("./HttpView").then((m) => ({ default: m.HttpView })));
+const CodeView = lazy(() => import("./SnippetsView").then((m) => ({ default: m.CodeView })));
+const SnippetsView = lazy(() => import("./SnippetsView").then((m) => ({ default: m.SnippetsView })));
+const ToolsView = lazy(() => import("./ToolsView").then((m) => ({ default: m.ToolsView })));
+const AgentsView = lazy(() => import("./AgentsView").then((m) => ({ default: m.AgentsView })));
+const AssistantView = lazy(() => import("./AssistantView").then((m) => ({ default: m.AssistantView })));
+const GraphView = lazy(() => import("./GraphView").then((m) => ({ default: m.GraphView })));
+const TerminalPanel = lazy(() => import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })));
+const loading = <div className="empty-state">Yükleniyor…</div>;
+
+/** Terminal paneli ilk kez acilinca yuklenir; sonra gizlense de oturumlar yasasin diye yerinde kalir. */
+function LazyTerminal() {
+  const open = useTerminal((s) => s.open);
+  const [ever, setEver] = useState(open);
+  useEffect(() => {
+    if (open) setEver(true);
+  }, [open]);
+  if (!ever) return null;
+  return (
+    <Suspense fallback={null}>
+      <TerminalPanel />
+    </Suspense>
+  );
+}
 
 /** Sekme surukleme verisi (Sidebar'in dosya surukleme turunden ayri). */
 const TAB_TYPE = "application/x-atolye-tab";
@@ -82,8 +101,17 @@ function TabBar({ group, focused, multi, col }: { group: Group; focused: boolean
   const bar = useRef<HTMLDivElement>(null);
 
   // Etkin sekme dar bolmede tasmissa gorunur yap
+  // (ilk cizimden sonra: acilista sayfa duzenini erkenden zorlamasin; sekme zaten gorunuyorsa kaydirma yok)
   useEffect(() => {
-    bar.current?.querySelector(`.tab[data-tab="${group.active}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const id = requestAnimationFrame(() => {
+      const el = bar.current;
+      const tab = el?.querySelector<HTMLElement>(`.tab[data-tab="${group.active}"]`);
+      if (!el || !tab) return;
+      const b = el.getBoundingClientRect();
+      const t = tab.getBoundingClientRect();
+      if (t.left < b.left || t.right > b.right) tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+    return () => cancelAnimationFrame(id);
   }, [group.active, group.size]);
 
   // Surukleme baska yerde biterse ya da iptal edilirse ekleme isaretini kaldir
@@ -231,8 +259,8 @@ function NoteHeader({ tab, col }: { tab: Tab; col: number }) {
             openMenu(r.left - 150, r.bottom + 4, [
               ...(tab.kind === "note"
                 ? [
-                    { label: "PDF olarak dışa aktar", icon: <Download size={14} />, run: () => void exportNote(tab.path, "pdf") },
-                    { label: "HTML olarak dışa aktar", icon: <Download size={14} />, run: () => void exportNote(tab.path, "html") },
+                    { label: "PDF olarak dışa aktar", icon: <Download size={14} />, run: () => void import("../lib/exporter").then((m) => m.exportNote(tab.path, "pdf")) },
+                    { label: "HTML olarak dışa aktar", icon: <Download size={14} />, run: () => void import("../lib/exporter").then((m) => m.exportNote(tab.path, "html")) },
                     "sep" as const,
                   ]
                 : []),
@@ -257,7 +285,12 @@ function NoteView({ tab, active }: { tab: Tab; active: boolean }) {
   const mode = useStore((s) => s.modes[tab.path] ?? (board ? "board" : s.settings?.defaultMode ?? "edit"));
   const spellcheck = useStore((s) => !!s.settings?.spellcheck);
   if (content === undefined) return <div className="empty-state">Not yükleniyor…</div>;
-  if (mode === "board" && board) return <BoardView path={tab.path} />;
+  if (mode === "board" && board)
+    return (
+      <Suspense fallback={loading}>
+        <BoardView path={tab.path} />
+      </Suspense>
+    );
   return (
     <div className={`note-view mode-${mode}`}>
       {mode !== "read" && <Editor path={tab.path} tabId={tab.id} content={content} active={active} spellcheck={spellcheck} />}
@@ -497,19 +530,23 @@ export function Workspace() {
                     <img src={vaultUrl(t.path)} alt={basename(t.path)} />
                   </div>
                 )}
-                {t.kind === "graph" && <GraphView active={visible} />}
-                {t.kind === "code" && <CodeView path={t.path} />}
-                {t.kind === "snippets" && <SnippetsView />}
-                {t.kind === "tools" && <ToolsView />}
-                {t.kind === "http" && <HttpView />}
-                {t.kind === "agents" && <AgentsView active={visible} />}
-                {t.kind === "assistant" && <AssistantView />}
+                {t.kind !== "note" && t.kind !== "drawing" && t.kind !== "image" && (
+                  <Suspense fallback={loading}>
+                    {t.kind === "graph" && <GraphView active={visible} />}
+                    {t.kind === "code" && <CodeView path={t.path} />}
+                    {t.kind === "snippets" && <SnippetsView />}
+                    {t.kind === "tools" && <ToolsView />}
+                    {t.kind === "http" && <HttpView />}
+                    {t.kind === "agents" && <AgentsView active={visible} />}
+                    {t.kind === "assistant" && <AssistantView />}
+                  </Suspense>
+                )}
               </div>
             );
           })}
         {drag && groups.map((g) => <DropZone key={`d${g.id}`} group={g} col={colOf.get(g.id)!} kind={drag} />)}
       </div>
-      <TerminalPanel />
+      <LazyTerminal />
       <StatusBar />
     </main>
   );

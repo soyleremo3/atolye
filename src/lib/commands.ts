@@ -1,12 +1,12 @@
 /** Komut paleti ve klavye kisayollari tek listeden beslenir. */
-import { toggleTerminal } from "../components/TerminalPanel";
+import { toggleTerminal } from "./terminalState";
 import { api } from "../api";
 import {
   activeTab, changeVault, closeTab, closeTabs, cycleTab, equalizeGroups, focusGroupAt, moveTabToSide, splitTab, flushAll, HTTP_PATH, modeOf, navigate, newBoard, newDrawing, newFolder, newNote, newRequestFile,
   newSnippet, openBoard, openDaily, openGraph, openSearch, openView, renamePath, deletePath, setMode, SNIPPETS_PATH, toggleLeft,
   toggleRight, TOOLS_PATH, AGENTS_PATH, ASSISTANT_PATH, updateSettings, useStore, toggleBookmark, openHistory,
 } from "../store";
-import { exportNote } from "./exporter";
+const exportNote = (path: string, kind: "pdf" | "html") => import("./exporter").then((m) => m.exportNote(path, kind));
 
 export type Command = { id: string; title: string; keys?: string; run: () => void; when?: () => boolean };
 
