@@ -101,6 +101,21 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
         await wait(500);
       }
       await shot("ag-04-calistir");
+      // Gercek "Hemen calistir" (Claude kotasi kullanir): yalniz ATOLYE_SMOKE_RUN=1 ile
+      if (process.env.ATOLYE_SMOKE_RUN === "1") {
+        await js(`(() => { const s = document.querySelector('.ag-new select'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, 'github'); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        await js(`document.querySelector('.ag-new textarea').focus()`);
+        await type("Reply with the single word TAMAM. Do not read or change any file.");
+        await js(`[...document.querySelectorAll('.ag-new .btn.primary')].find(b => b.textContent.includes('Hemen'))?.click()`);
+        let ended = "";
+        for (let i = 0; i < 90 && !ended; i++) {
+          await wait(2000);
+          ended = await js(`[...document.querySelectorAll('.ag-log-line.k-end')].map(e => e.textContent).join(' ')`);
+        }
+        const logText: string = await js(`[...document.querySelectorAll('.ag-log-line')].map(e => e.textContent).join(' | ')`);
+        check("ajanlar: hemen çalıştır (gerçek claude -p)", /bitti/.test(ended) && /TAMAM/i.test(logText), logText.slice(-300));
+        await shot("ag-05-calisti");
+      }
       log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
     } catch (e) {
       log.push(`SMOKE HATA: ${String(e)}`);

@@ -5,7 +5,7 @@
  * siki regex ile dogrulanir; git ve claude kabuksuz argumanlarla cagrilir, istem stdin'den verilir.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { existsSync, promises as fs } from "node:fs";
+import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 
 export type AgentsConfig = { repoPath: string; appPath: string };
@@ -213,6 +213,18 @@ function promptFor(role: string, task: string, cfg: AgentsConfig): string {
   ].join("\n");
 }
 
+/** roster.json'daki model (claude-opus / claude-sonnet / claude-haiku) -> claude --model takma adi. */
+export function modelFor(root: string, role: string): string | null {
+  try {
+    const roster = JSON.parse(readFileSync(path.join(root, "roster.json"), "utf8")).roles as { id: string; model: string }[];
+    const m = roster.find((r) => r.id === role)?.model ?? "";
+    const alias = /^claude-(opus|sonnet|haiku)$/.exec(m)?.[1];
+    return alias ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function startRun(cfg: AgentsConfig, role: string, task: string, send: (e: RunEvent) => void): string {
   const root = requireRepo(cfg);
   if (!ROLE.test(role) || !existsSync(path.join(root, "roller", role, "rol.md"))) throw new Error("Bilinmeyen rol");
@@ -227,6 +239,8 @@ export function startRun(cfg: AgentsConfig, role: string, task: string, send: (e
   };
   const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
     "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash(git *),Bash(npm run *),Bash(npm test*),Bash(npx jest*),Bash(node *)"];
+  const model = modelFor(root, role);
+  if (model) args.push("--model", model);
   if (cfg.appPath && existsSync(cfg.appPath)) args.push("--add-dir", cfg.appPath);
   // Kabuk kullanilmaz (argumanlar oldugu gibi gider); istem stdin'den verilir.
   const child = spawn(claudeBinary(), args, { cwd: root, windowsHide: true });
