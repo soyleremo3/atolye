@@ -72,6 +72,79 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
 
   // Kasaya yazilamazsa (Denetimli klasor erisimi gibi): yedekle, uyar, izin gelince kendiliginden kaydet.
   // Harness "Kilitli.md" dosyasini salt okunur yapar; yeniden adlandirma EPERM verir.
+  // Yonetici tusu: gercek Claude yerine yerel sahte sunucu (ATOLYE_FIRE_URL); kota harcanmaz.
+  if (phase === "manager") {
+    const http = await import("node:http");
+    const hits: { auth: string; beta: string; version: string; body: string; url: string }[] = [];
+    let reply = 401;
+    const server = http.createServer((req, res) => {
+      let body = "";
+      req.on("data", (d) => (body += d));
+      req.on("end", () => {
+        hits.push({ auth: String(req.headers.authorization ?? ""), beta: String(req.headers["anthropic-beta"] ?? ""), version: String(req.headers["anthropic-version"] ?? ""), body, url: req.url ?? "" });
+        res.writeHead(reply, { "content-type": "application/json" });
+        // oturum adresi bos: testte tarayici acilmasin
+        res.end(reply === 200 ? JSON.stringify({ type: "routine_fire", claude_code_session_id: "s1", claude_code_session_url: "" }) : JSON.stringify({ type: "error" }));
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    process.env.ATOLYE_FIRE_URL = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const fake = "sk-ant-oat01-" + "T".repeat(40);
+    const toastText = () => js(`[...document.querySelectorAll('.toast')].map(t => t.textContent).join(' | ')`) as Promise<string>;
+    try {
+      await wait(2500);
+      await key("J", ["control", "alt"]);
+      await wait(2500);
+      check("yönetici: kart Merkez'de, anahtar yokken 'Tuşu kur'", await js(`!!document.querySelector('.hub-manager') && /Tuşu kur/.test(document.querySelector('.hub-manager').textContent)`));
+      // kısayol başka sekmedeyken: Merkez'e geçer ve onay kutusu açılır
+      await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Pano')).click()`);
+      await wait(800);
+      await key("G", ["control", "alt"]);
+      await wait(1500);
+      check("yönetici: Ctrl+Alt+G Merkez'i ve onay kutusunu açar (anahtar yok uyarısı)", await js(`!!document.querySelector('.hub-manager-confirm') && /Önce tuşu kur/.test(document.querySelector('.hub-manager-confirm').textContent)`));
+      const bad = await js(`window.atolye.manager.saveToken('merhaba').then(() => 'kaydedildi', e => String(e.message))`);
+      check("yönetici: yanlış anahtar reddedilir", /rutin anahtarı değil/.test(bad), bad);
+      await js(`window.atolye.manager.saveToken(${JSON.stringify(fake)})`);
+      const st = await js(`window.atolye.manager.status()`);
+      const tokenFile = readFileSync(path.join(app.getPath("userData"), "manager-token.bin"));
+      check("yönetici: anahtar şifreli kaydedildi, arayüze dönmez", st.hasToken && !JSON.stringify(st).includes("sk-ant") && !tokenFile.toString("latin1").includes("sk-ant"), JSON.stringify({ hasToken: st.hasToken, routine: st.routine }));
+      // 401: hata gösterilir, çalışma kaydedilmez
+      await js(`document.querySelector('.hub-manager-confirm .btn:not(.primary)')?.click()`);
+      await wait(500);
+      await key("G", ["control", "alt"]);
+      await wait(1200);
+      await js(`[...document.querySelectorAll('.hub-manager-confirm button')].find(b => b.textContent.includes('Başlat')).click()`);
+      await wait(2500);
+      check("yönetici: geçersiz anahtar (401) anlaşılır hata verir", /Anahtar geçersiz/.test(await toastText()) && hits.length === 1, await toastText());
+      const h = hits[0] ?? { auth: "", beta: "", version: "", body: "", url: "" };
+      check("yönetici: resmi uç, Bearer anahtar, sürüm ve beta başlıkları", h.url === `/v1/claude_code/routines/${st.routine}/fire` && h.auth === `Bearer ${fake}` && h.version === "2023-06-01" && h.beta === "experimental-cc-routine-2026-04-01", `${h.url} ${h.version} ${h.beta}`);
+      check("yönetici: gövde yalnız mod işareti + 5 iş", (() => { try { const b = JSON.parse(h.body); return b.text === "atolye-owner-run\nmax_tasks: 5"; } catch { return false; } })(), h.body);
+      // 200: başlar, kart "çalışıyor" olur
+      reply = 200;
+      await wait(4500);
+      await js(`[...document.querySelectorAll('.hub-manager-confirm button')].find(b => b.textContent.includes('Başlat'))?.click()`);
+      await wait(2500);
+      const running = await js(`document.querySelector('.hub-manager')?.textContent || ''`);
+      check("yönetici: başlatınca kart 'Yönetici çalışıyor'", hits.length === 2 && /Yönetici çalışıyor/.test(running), running.slice(0, 160));
+      await shot("manager-running");
+      // ikinci basış: aynı anda iki yönetici yok
+      const again = await js(`window.atolye.manager.run().then(() => 'başladı', e => String(e.message))`);
+      check("yönetici: çalışırken ikinci kez başlamaz", /zaten çalışıyor/.test(again) && hits.length === 2, again);
+      // bulut yönetici durumunu "working" yazınca Robotlar satırı "çalışıyor" olur
+      const repo = process.env.ATOLYE_AGENTS || "";
+      writeFileSync(path.join(repo, "roller", "manager", "durum.json"), JSON.stringify({ role: "manager", number: "11", model: "claude-opus", state: "working", lastRun: null, did: "5 iş seçiliyor", next: "", blockedOn: "" }));
+      const mgrRow = await js(`window.atolye.hub.robots().then(r => r.find(x => x.id === 'manager')?.live?.note || '')`);
+      check("yönetici: Robotlar'da 'Claude yönetici' çalışıyor görünür", mgrRow === "5 iş seçiliyor", mgrRow);
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    server.close();
+    await fs.writeFile(path.join(outDir, "log.txt"), log.join("\n"), "utf8");
+    app.quit();
+    return;
+  }
+
   // Ajanlar bolumu: ATOLYE_AGENTS=<gecici ajan reposu> ile (gercek repoya dokunmaz)
   if (phase === "agents") {
     const repo = process.env.ATOLYE_AGENTS || "";
