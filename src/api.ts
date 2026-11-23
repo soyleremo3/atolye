@@ -17,7 +17,13 @@ export type AgentsSnapshot = {
 export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
 export type RepoSync = { ok: boolean; text: string; at: string };
 export type SyncStatus = { agents: RepoSync; app: RepoSync | null; saved: number; at: string };
-export type RobotView = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; next: string | null; last: string | null; live: AgyRun | null };
+export type BridgeStatus = {
+  installed: boolean;
+  enabled: boolean;
+  request: { id: string; which: string; at: string } | null;
+  result: { id: string; which: string; at: string; ok: boolean; state?: string; error?: string; conversationId?: string } | null;
+};
+export type RobotView = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; sidecar?: string; next: string | null; last: string | null; live: AgyRun | null };
 export type ManagerFire = { at: string; url: string };
 export type ManagerStatus = { hasToken: boolean; canEncrypt: boolean; routine: string | null; last: ManagerFire | null; phase: "idle" | "starting" | "running" | "done"; managerState: string | null; managerDid: string; managerLastRun: string | null };
 export type AgyRun = { sidecar: string; name: string; state: "running" | "done" | "failed"; started: string; updated: string; model: string | null; note: string };
@@ -145,6 +151,9 @@ type AtolyeApi = {
     issue(repo: "app" | "agents", n: number): Promise<string>;
     openApp(which: "antigravity" | "claudeUsage" | "claudeRoutines" | "github"): Promise<boolean>;
     openUrl(url: string): Promise<boolean>;
+    bridgeStatus(): Promise<BridgeStatus>;
+    bridgeInstall(): Promise<BridgeStatus>;
+    agyNow(which: string): Promise<BridgeStatus>;
     onSynced(cb: (s: SyncStatus) => void): () => void;
   };
   manager: {

@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Bot, Cloud, CloudOff, ExternalLink, FileText, Gauge, GitBranch, Laptop, Loader2, Play, RefreshCw, ShieldCheck, SquareTerminal, TriangleAlert,
 } from "lucide-react";
-import { api, type AgentsSnapshot, type GhInfo, type ReportItem, type RobotView, type SyncStatus } from "../api";
+import { api, type AgentsSnapshot, type BridgeStatus, type GhInfo, type ReportItem, type RobotView, type SyncStatus } from "../api";
 import { requestTerminal } from "../lib/terminalState";
 import { ManagerCard } from "./ManagerCard";
 import { toast, updateSettings, useStore } from "../store";
@@ -45,9 +45,13 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const openAtLogin = useStore((s) => s.settings?.openAtLogin !== false);
 
+  const [bridge, setBridge] = useState<BridgeStatus | null>(null);
+  const [ask, setAsk] = useState<string | null>(null);
+
   const load = useCallback(async (forceGh = false) => {
-    const [r, rep, st] = await Promise.all([api.hub.robots().catch(() => []), api.hub.reports().catch(() => []), api.hub.status().catch(() => null)]);
+    const [r, rep, st, br] = await Promise.all([api.hub.robots().catch(() => []), api.hub.reports().catch(() => []), api.hub.status().catch(() => null), api.hub.bridgeStatus().catch(() => null)]);
     setRobots(r);
+    setBridge(br);
     setReports(rep);
     if (st) setStatus(st);
     setGh(await api.hub.github(forceGh).catch((e) => ({ ok: false, error: errText(e), issues: [], release: null, ci: [] })));
@@ -60,12 +64,24 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
   // ekran acikken saatler ve "x dk once" yazilari tazelensin
   useEffect(() => {
     if (!active) return;
-    const busy = robots.some((r) => r.live?.state === "running");
+    const busy = robots.some((r) => r.live?.state === "running") || (!!bridge?.request && bridge.result?.id !== bridge.request.id);
     const t = window.setInterval(() => void load(), busy ? 15_000 : 60_000);
     return () => window.clearInterval(t);
-  }, [active, load, robots]);
+  }, [active, load, robots, bridge]);
 
   const run = (p: Promise<unknown>) => void p.catch((e) => toast(errText(e), "error"));
+  // Antigravity "simdi": Atolye yalniz istek birakir, Antigravity'nin kendi zamanlayicisi en gec 1 dk icinde baslatir
+  const agyNow = async (which: string) => {
+    setAsk(null);
+    try {
+      setBridge(await api.hub.agyNow(which));
+      toast("Antigravity'ye iletildi; en geç 1 dakikada kendisi başlatır.");
+    } catch (e) {
+      toast(errText(e), "error");
+    }
+  };
+  const waiting = (sc?: string) => !!sc && bridge?.request?.which === sc && bridge.result?.id !== bridge.request.id && Date.now() - new Date(bridge.request.at).getTime() < 10 * 60_000;
+  const bridgeError = (sc?: string) => (sc && bridge?.result && !bridge.result.ok && bridge.result.which === sc && Date.now() - new Date(bridge.result.at).getTime() < 60 * 60_000 ? bridge.result.error : null);
   // ajan sayisi: Claude rolleri + calisan Antigravity otomasyonlari (rol eslemesi cift sayilmasin)
   const agyRunning = robots.filter((r) => r.id !== "manager" && r.where === "pc" && r.live?.state === "running");
   const claudeWorking = snap.roles.filter((r) => r.live?.state === "working" && r.live.source !== "antigravity");
@@ -115,10 +131,21 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
                     <i className={`hub-dot ${r.live?.state === "running" ? "live" : r.live?.state === "failed" ? "bad" : "on"}`} /> <b>{r.ad}</b>
                     {r.live?.state === "running" && <span className="hub-tag live">Şu an çalışıyor · {r.live.note}</span>}
                     {r.live?.state === "failed" && <span className="hub-tag bad" title={`Başladı: ${when(r.live.started)}`}>Son çalışma: {r.live.note}</span>}
+                    {r.live?.state !== "running" && waiting(r.sidecar) && <span className="hub-tag live">Antigravity'ye iletildi · 1 dk içinde başlar</span>}
+                    {r.live?.state !== "running" && !waiting(r.sidecar) && bridgeError(r.sidecar) && <span className="hub-tag bad">{bridgeError(r.sidecar)}</span>}
                     <div className="muted small">{r.what}</div>
                   </td>
                   <td>{r.where === "cloud" ? <span className="hub-tag cloud"><Cloud size={12} /> Bulut</span> : <span className="hub-tag pc"><Laptop size={12} /> Bu PC</span>}</td>
-                  <td>{when(r.next)}</td>
+                  <td>
+                    {when(r.next)}
+                    {r.sidecar && bridge?.installed && bridge.enabled && r.live?.state !== "running" && !waiting(r.sidecar) && (
+                      ask === r.sidecar ? (
+                        <span className="hub-now-ask"> Şimdi başlasın mı? <button className="btn small primary" onClick={() => void agyNow(r.sidecar!)}>Evet</button> <button className="btn small" onClick={() => setAsk(null)}>Hayır</button></span>
+                      ) : (
+                        <button className="btn small hub-now" title="Antigravity bu işi şimdi kendisi başlatır (kendi kotası)" onClick={() => setAsk(r.sidecar!)}><Play size={12} /> Şimdi</button>
+                      )
+                    )}
+                  </td>
                   <td className="muted">{when(r.last)}</td>
                 </tr>
               ))}
@@ -133,6 +160,16 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
           <div className="hub-sync">
             <div><b>Ajan klasörü:</b> {status?.agents.text ?? "—"}</div>
             <div><b>Uygulama (version6):</b> {status?.app?.text ?? "—"}</div>
+            <div className="hub-bridge">
+              <b>Antigravity'yi buradan başlatma:</b>{" "}
+              {!bridge ? "—" : !bridge.installed ? (
+                <>kurulu değil · <button className="btn small" onClick={() => run(api.hub.bridgeInstall().then((b) => { setBridge(b); toast("Köprü kuruldu. Şimdi Antigravity → Automations → Paused → 'Atölye: şimdi çalıştır' → aç."); }))}>Köprüyü kur</button></>
+              ) : !bridge.enabled ? (
+                <>kuruldu, Antigravity'de açılmayı bekliyor: Antigravity → <b>Automations</b> → <b>Paused</b> → <b>Atölye: şimdi çalıştır</b> → aç · <button className="btn small" onClick={() => run(api.hub.openApp("antigravity"))}>Antigravity'yi aç</button></>
+              ) : (
+                <>açık · Antigravity işlerinin yanındaki <b>Şimdi</b> düğmesi (Antigravity açık olmalı). Ya da Antigravity'de <b>Run Now</b>.</>
+              )}
+            </div>
             <label className="hub-check">
               <input type="checkbox" checked={openAtLogin} onChange={(e) => void updateSettings({ openAtLogin: e.target.checked })} />
               Bilgisayar açılınca Atölye arka planda başlasın (eşitleme hep çalışsın)

@@ -92,6 +92,9 @@ contextBridge.exposeInMainWorld("atolye", {
     issue: (repo: string, n: number) => invoke("hub:issue", repo, n),
     openApp: (which: string) => invoke("hub:openApp", which),
     openUrl: (url: string) => invoke("hub:openUrl", url),
+    bridgeStatus: () => invoke("hub:bridgeStatus"),
+    bridgeInstall: () => invoke("hub:bridgeInstall"),
+    agyNow: (which: string) => invoke("hub:agyNow", which),
     onSynced: (cb: (s: unknown) => void) => on("hub:synced", cb),
   },
   manager: {

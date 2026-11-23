@@ -16,6 +16,7 @@ import * as terminal from "./terminal";
 import * as assistant from "./assistant";
 import * as hub from "./hub";
 import * as manager from "./manager";
+import * as agyBridge from "./agyBridge";
 
 /** Windows acilisinda baslatildiysa pencere simge durumunda acilir (arka planda esitleme yapar). */
 const STARTUP = process.argv.includes("--atolye-startup");
@@ -537,6 +538,14 @@ function registerIpc(): void {
     await background(); // once bu PC'deki Antigravity sonuclari gitsin, bulut insin
     return agents.startManager(cfg, (e) => win?.webContents.send("agents:event", e));
   });
+  // Antigravity "simdi calistir": Atolye yalniz istek dosyasi yazar; isi Antigravity'nin kendi zamanlayicisi baslatir.
+  handle("hub:bridgeStatus", () => agyBridge.bridgeStatus(agents.requireRepo(agentsCfg())));
+  handle("hub:bridgeInstall", async () => {
+    const repo = agents.requireRepo(agentsCfg());
+    await agyBridge.installBridge(repo);
+    return agyBridge.bridgeStatus(repo);
+  });
+  handle("hub:agyNow", (which: string) => agyBridge.requestRun(agents.requireRepo(agentsCfg()), String(which)));
   handle("hub:openUrl", (url: string) => {
     if (!/^https:\/\/(github\.com\/soyleremo3\/|claude\.ai\/code\/[A-Za-z0-9_-]+$)/.test(String(url))) throw new Error("Yalnız GitHub ve Claude oturum bağlantıları");
     openExternalSafe(String(url));

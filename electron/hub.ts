@@ -89,7 +89,7 @@ export function autoSync(cfg: AgentsConfig): Promise<SyncStatus> {
 }
 
 // ---------------------------------------------------------------- robotlar
-type Robot = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; last: { commit?: string; file?: string; roles?: string[] } | null };
+type Robot = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; sidecar?: string; last: { commit?: string; file?: string; roles?: string[] } | null };
 export type RobotView = Omit<Robot, "last"> & { next: string | null; last: string | null; live: AgyRun | null };
 
 function field(spec: string, min: number, max: number): Set<number> {
@@ -175,7 +175,7 @@ export async function robots(cfg: AgentsConfig): Promise<RobotView[]> {
     if (run && run.state !== "running" && (!last || run.updated > last)) last = run.updated;
     // Bulut robotu su an bu PC'de calisiyorsa (yonetici tusu) "Nerede" o anki yeri gostersin
     const where = r.id === "manager" && isRunning("manager") ? "pc" : r.where;
-    return { id: r.id, ad: r.ad, where, cron: r.cron, model: r.model, what: r.what, next: nextRun(r.cron)?.toISOString() ?? null, last, live: run };
+    return { id: r.id, ad: r.ad, where, cron: r.cron, model: r.model, what: r.what, sidecar: r.sidecar, next: nextRun(r.cron)?.toISOString() ?? null, last, live: run };
   }));
 }
 

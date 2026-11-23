@@ -155,3 +155,6 @@
 .hub-manager-buttons, .hub-manager-token { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .hub-manager-token input { flex: 1; min-width: 220px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: var(--mono, monospace); }
 .hub-manager-foot { margin-top: 8px; }
+.hub-now { margin-left: 8px; padding: 1px 8px; font-size: 11.5px; }
+.hub-now-ask { display: inline-flex; gap: 4px; align-items: center; margin-left: 6px; font-size: 12px; }
+.hub-bridge { margin-top: 6px; line-height: 1.6; }
