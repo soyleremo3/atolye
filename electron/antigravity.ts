@@ -57,15 +57,60 @@ function errorNote(text: string): string {
 
 type Step = { source?: string; type?: string; status?: string; created_at?: string; model?: string; content?: string; tool_calls?: unknown; error?: string };
 
-async function one(root: string, sidecar: string, now: number): Promise<AgyRun | null> {
-  const cfg = JSON.parse(await fs.readFile(path.join(root, "config", "sidecars", sidecar, "sidecar.json"), "utf8").catch(() => "{}")) as { display_name?: string };
+/** Son 12 saatte yazilmis sohbetler: id -> ilk mesaj (istem) ve baslama zamani. Bir kez okunur, tum otomasyonlar paylasir. */
+type Conv = { id: string; prompt: string; started: number };
+async function recentConversations(root: string, now: number): Promise<Conv[]> {
+  const dir = path.join(root, "antigravity", "brain");
+  const ids = await fs.readdir(dir).catch(() => [] as string[]);
+  const out: Conv[] = [];
+  await Promise.all(ids.map(async (id) => {
+    const file = path.join(dir, id, ".system_generated", "logs", "transcript.jsonl");
+    const st = await fs.stat(file).catch(() => null);
+    if (!st || now - st.mtimeMs > RECENT) return;
+    const h = await fs.open(file, "r").catch(() => null);
+    if (!h) return;
+    try {
+      const buf = Buffer.alloc(16 * 1024);
+      const { bytesRead } = await h.read(buf, 0, buf.length, 0);
+      const first = JSON.parse(buf.subarray(0, bytesRead).toString("utf8").split("\n")[0]) as Step;
+      if (first.type !== "USER_INPUT") return;
+      out.push({ id, prompt: norm(first.content ?? ""), started: new Date(first.created_at ?? st.mtimeMs).getTime() });
+    } catch {
+      /* okunamayan sohbet */
+    } finally {
+      await h.close();
+    }
+  }));
+  return out;
+}
+
+/** Karsilastirma icin: <USER_REQUEST> sarmalayicisi ve bosluk farklari atilir, ilk 160 karakter. */
+const norm = (t: string) => t.replace(/<\/?USER_REQUEST>/g, "").replace(/\s+/g, " ").trim().slice(0, 160);
+
+/**
+ * Bir otomasyonun en son calismasi. Iki kaynak: zamanlayici kaydi (sidecar.log "Triggering command")
+ * ve sohbetin ilk mesaji: Antigravity'de "Run Now" ya da Atolye'nin "simdi calistir" istegiyle baslayan
+ * isler zamanlayici kaydina dusmez, ama ilk mesaj otomasyonun istemiyle aynidir.
+ */
+async function one(root: string, sidecar: string, now: number, convs: Conv[]): Promise<AgyRun | null> {
+  const cfg = JSON.parse(await fs.readFile(path.join(root, "config", "sidecars", sidecar, "sidecar.json"), "utf8").catch(() => "{}")) as { display_name?: string; args?: string[] };
+  const args = cfg.args ?? [];
+  const prompt = norm(args[args.length - 1] ?? "");
+  const cfgModel = args.map((x) => /^--model=(\S+)$/.exec(x)?.[1]).find(Boolean) ?? null;
   const log = await tail(path.join(root, "antigravity", "sidecar_data", sidecar, "logs", "sidecar.log"), 64 * 1024);
   const trig = [...log.matchAll(/^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \[schedule\] Triggering command: "agentapi" \[([^\n]*)/gm)].pop();
-  if (!trig) return null;
-  const started = new Date(trig[1].replace(" ", "T") + "Z");
-  if (Number.isNaN(started.getTime())) return null;
-  const model = /--model=(\S+)/.exec(trig[2])?.[1] ?? null;
-  const conv = /"conversationId":\s*"([0-9a-f-]{36})"/.exec(log.slice((trig.index ?? 0) + trig[0].length))?.[1];
+  let started = trig ? new Date(trig[1].replace(" ", "T") + "Z") : null;
+  if (started && Number.isNaN(started.getTime())) started = null;
+  let conv = trig ? /"conversationId":\s*"([0-9a-f-]{36})"/.exec(log.slice((trig.index ?? 0) + trig[0].length))?.[1] : undefined;
+  let model = trig ? /--model=(\S+)/.exec(trig[2])?.[1] ?? null : cfgModel;
+  // ilk mesaji bu otomasyonun istemi olan daha yeni bir sohbet varsa (Run Now) o gecerli
+  const match = prompt.length > 40 ? convs.filter((c) => c.prompt === prompt).sort((x, y) => y.started - x.started)[0] : undefined;
+  if (match && (!started || match.started > started.getTime() + 60_000)) {
+    conv = match.id;
+    started = new Date(match.started);
+    model = cfgModel;
+  }
+  if (!started) return null;
   const base = { sidecar, name: cfg.display_name || sidecar, started: started.toISOString(), model };
   const age = now - started.getTime();
   if (!conv) return age < 5 * MIN ? { ...base, state: "running", updated: base.started, note: "Başlıyor" } : null;
@@ -148,8 +193,9 @@ export async function agyRuns(now = Date.now()): Promise<Record<string, AgyRun>>
   if (!existsSync(dir)) return {};
   const names = (await fs.readdir(dir, { withFileTypes: true }).catch(() => [])).filter((d) => d.isDirectory()).map((d) => d.name);
   const out: Record<string, AgyRun> = {};
+  const convs = await recentConversations(root, now);
   await Promise.all(names.map(async (n) => {
-    const r = await one(root, n, now).catch(() => null);
+    const r = await one(root, n, now, convs).catch(() => null);
     if (r) out[n] = r;
   }));
   return out;
