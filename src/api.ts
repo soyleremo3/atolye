@@ -18,6 +18,8 @@ export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "
 export type RepoSync = { ok: boolean; text: string; at: string };
 export type SyncStatus = { agents: RepoSync; app: RepoSync | null; saved: number; at: string };
 export type RobotView = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; next: string | null; last: string | null; live: AgyRun | null };
+export type ManagerFire = { at: string; url: string };
+export type ManagerStatus = { hasToken: boolean; canEncrypt: boolean; routine: string | null; last: ManagerFire | null; phase: "idle" | "starting" | "running" | "done"; managerState: string | null; managerDid: string; managerLastRun: string | null };
 export type AgyRun = { sidecar: string; name: string; state: "running" | "done" | "failed"; started: string; updated: string; model: string | null; note: string };
 export type ReportItem = { rel: string; title: string; kind: string; origin: "cloud" | "pc"; pending: boolean; date: string };
 export type GhIssue = { number: number; title: string; labels: string[]; updatedAt: string; url: string; repo: "app" | "agents" };
@@ -144,6 +146,12 @@ type AtolyeApi = {
     openApp(which: "antigravity" | "claudeUsage" | "claudeRoutines" | "github"): Promise<boolean>;
     openUrl(url: string): Promise<boolean>;
     onSynced(cb: (s: SyncStatus) => void): () => void;
+  };
+  manager: {
+    status(): Promise<ManagerStatus>;
+    saveToken(token: string): Promise<void>;
+    clearToken(): Promise<void>;
+    run(): Promise<ManagerFire>;
   };
   assistant: {
     ask(question: string, scope: "notes" | "vault", model: "haiku" | "sonnet" | "opus"): Promise<string>;

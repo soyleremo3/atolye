@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { api, type AgentsSnapshot, type GhInfo, type ReportItem, type RobotView, type SyncStatus } from "../api";
 import { requestTerminal } from "../lib/terminalState";
+import { ManagerCard } from "./ManagerCard";
 import { toast, updateSettings, useStore } from "../store";
 
 const when = (iso: string | null) => {
@@ -66,7 +67,7 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
 
   const run = (p: Promise<unknown>) => void p.catch((e) => toast(errText(e), "error"));
   // ajan sayisi: Claude rolleri + calisan Antigravity otomasyonlari (rol eslemesi cift sayilmasin)
-  const agyRunning = robots.filter((r) => r.live?.state === "running");
+  const agyRunning = robots.filter((r) => r.where === "pc" && r.live?.state === "running");
   const working = [...snap.roles.filter((r) => r.live?.state === "working" && r.live.source !== "antigravity"), ...agyRunning];
   const pending = snap.approvals.pending;
   const ciLast = gh?.ci[0];
@@ -93,6 +94,8 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
           {gh?.release && <span className="muted"> · {gh.release.tag}</span>}
         </button>
       </section>
+
+      <ManagerCard active={active} onAfterRun={() => void load()} />
 
       <div className="hub-grid">
         {/* --- robotlar */}

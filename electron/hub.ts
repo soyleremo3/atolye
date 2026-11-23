@@ -157,6 +157,14 @@ export async function robots(cfg: AgentsConfig): Promise<RobotView[]> {
   const root = requireRepo(cfg);
   const list = (await readJson<{ robots: Robot[] }>(path.join(root, "schedule.json"), { robots: [] })).robots;
   const runs = await robotRuns(root).catch(() => ({} as Record<string, AgyRun>));
+  // Buluttaki yonetici: durum.json "working" ve son 3 saatte degismis -> su an calisiyor (zamanlanmis ya da tusla)
+  const mgrFile = path.join(root, "roller", "manager", "durum.json");
+  const mgr = await readJson<{ state?: string; did?: string } | null>(mgrFile, null);
+  const mgrAt = (await fs.stat(mgrFile).catch(() => null))?.mtimeMs ?? 0;
+  if (mgr?.state === "working" && Date.now() - mgrAt < 3 * 60 * 60_000) {
+    const at = new Date(mgrAt).toISOString();
+    runs.manager = { sidecar: "", name: "Claude yönetici", state: "running", started: at, updated: at, model: null, note: mgr.did || "işleri dağıtıyor" };
+  }
   return Promise.all(list.map(async (r) => {
     const run = runs[r.id] ?? null;
     let last = await lastOf(root, r.last);

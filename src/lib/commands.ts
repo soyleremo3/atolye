@@ -1,5 +1,6 @@
 /** Komut paleti ve klavye kisayollari tek listeden beslenir. */
 import { toggleTerminal } from "./terminalState";
+import { requestManagerRun } from "./managerRunState";
 import { api } from "../api";
 import {
   activeTab, changeVault, closeTab, closeTabs, cycleTab, equalizeGroups, focusGroupAt, moveTabToSide, splitTab, flushAll, HTTP_PATH, modeOf, navigate, newBoard, newDrawing, newFolder, newNote, newRequestFile,
@@ -38,6 +39,7 @@ export const COMMANDS: Command[] = [
   { id: "bookmark", title: "Yer imine ekle / çıkar", keys: "Ctrl+Alt+M", run: () => toggleBookmark() },
   { id: "history", title: "Dosya geçmişi (eski sürümler)", keys: "Ctrl+Alt+Y", run: () => openHistory() },
   { id: "agents", title: "Merkez (robotlar, raporlar, onaylar, GitHub, ajanlar)", keys: "Ctrl+Alt+J", run: () => openView(AGENTS_PATH) },
+  { id: "manager.run", title: "Yöneticiyi çalıştır (bulut, en fazla 5 iş)", keys: "Ctrl+Alt+G", run: () => { openView(AGENTS_PATH); requestManagerRun(); } },
   { id: "tools", title: "Geliştirici araçları (JSON, Regex, JWT, Base64…)", keys: "Ctrl+Alt+A", run: () => openView(TOOLS_PATH) },
   { id: "daily.open", title: "Bugünün günlük notu", keys: "Ctrl+Alt+D", run: () => void openDaily() },
   { id: "template.new", title: "Şablondan yeni not", keys: "Ctrl+Alt+T", run: () => useStore.setState({ overlay: "templates" }) },

@@ -15,6 +15,7 @@ import * as agents from "./agents";
 import * as terminal from "./terminal";
 import * as assistant from "./assistant";
 import * as hub from "./hub";
+import * as manager from "./manager";
 
 /** Windows acilisinda baslatildiysa pencere simge durumunda acilir (arka planda esitleme yapar). */
 const STARTUP = process.argv.includes("--atolye-startup");
@@ -518,8 +519,13 @@ function registerIpc(): void {
     openExternalSafe(urls[which]);
     return true;
   });
+  // Yonetici tusu: buluttaki yonetici rutinini hemen baslatir (en fazla 5 is). Anahtar arayuze hic donmez.
+  handle("manager:status", () => manager.status(agentsCfg()));
+  handle("manager:saveToken", (token: string) => manager.saveToken(String(token ?? "")));
+  handle("manager:clearToken", () => manager.clearToken());
+  handle("manager:run", () => manager.fire(agentsCfg(), () => background()));
   handle("hub:openUrl", (url: string) => {
-    if (!/^https:\/\/github\.com\/soyleremo3\//.test(String(url))) throw new Error("Yalnız GitHub bağlantıları");
+    if (!/^https:\/\/(github\.com\/soyleremo3\/|claude\.ai\/code\/[A-Za-z0-9_-]+$)/.test(String(url))) throw new Error("Yalnız GitHub ve Claude oturum bağlantıları");
     openExternalSafe(String(url));
     return true;
   });

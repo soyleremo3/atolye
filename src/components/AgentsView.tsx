@@ -13,6 +13,7 @@ import { HubView } from "./HubView";
 import { md, stripFrontmatter, type RenderEnv } from "../lib/markdown";
 import { toast, useStore } from "../store";
 import { AgentsOffice3D } from "./AgentsOffice3D";
+import { useManagerRun } from "../lib/managerRunState";
 
 type TabId = "hub" | "office" | "approvals" | "board" | "reports" | "notes" | "runs";
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
@@ -71,6 +72,11 @@ export function AgentsView({ active }: { active: boolean }) {
       /* yok sayilir */
     }
   };
+  const managerRequest = useManagerRun((s) => s.pending);
+  useEffect(() => {
+    if (managerRequest) setTab("hub");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [managerRequest]);
   const [snap, setSnap] = useState<AgentsSnapshot | null>(null);
   const [cfg, setCfg] = useState<AgentsConfig | null>(null);
   const [error, setError] = useState<string | null>(null);

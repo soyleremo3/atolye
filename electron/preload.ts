@@ -94,6 +94,12 @@ contextBridge.exposeInMainWorld("atolye", {
     openUrl: (url: string) => invoke("hub:openUrl", url),
     onSynced: (cb: (s: unknown) => void) => on("hub:synced", cb),
   },
+  manager: {
+    status: () => invoke("manager:status"),
+    saveToken: (token: string) => invoke("manager:saveToken", token),
+    clearToken: () => invoke("manager:clearToken"),
+    run: () => invoke("manager:run"),
+  },
   assistant: {
     ask: (question: string, scope: string, model: string) => invoke("assistant:ask", question, scope, model),
     stop: () => invoke("assistant:stop"),

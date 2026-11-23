@@ -139,3 +139,19 @@
 .hub-kind { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .hub-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub .link { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; }
+
+/* Merkez → Yonetici tusu */
+.hub-manager { margin-bottom: 14px; }
+.hub-manager.is-running { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.hub-manager-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.hub-manager-text { flex: 1; min-width: 240px; }
+.hub-manager-text h3 { margin: 0 0 4px; }
+.hub-manager-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hub-manager-go { font-size: 14px; padding: 8px 14px; gap: 8px; }
+.hub-manager-go kbd { background: color-mix(in srgb, #fff 18%, transparent); border-color: transparent; color: inherit; }
+.hub-manager-confirm, .hub-manager-setup { margin-top: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.hub-manager-confirm p, .hub-manager-setup p { margin: 0 0 6px; }
+.hub-manager-confirm ul, .hub-manager-setup ol { margin: 4px 0 10px; padding-left: 20px; line-height: 1.55; }
+.hub-manager-buttons, .hub-manager-token { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hub-manager-token input { flex: 1; min-width: 220px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: var(--mono, monospace); }
+.hub-manager-foot { margin-top: 8px; }
