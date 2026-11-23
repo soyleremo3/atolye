@@ -15,6 +15,12 @@ export type AgentsSnapshot = {
   commits: { hash: string; date: string; subject: string }[];
 };
 export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
+export type RepoSync = { ok: boolean; text: string; at: string };
+export type SyncStatus = { agents: RepoSync; app: RepoSync | null; saved: number; at: string };
+export type RobotView = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; next: string | null; last: string | null };
+export type ReportItem = { rel: string; title: string; kind: string; origin: "cloud" | "pc"; pending: boolean; date: string };
+export type GhIssue = { number: number; title: string; labels: string[]; updatedAt: string; url: string; repo: "app" | "agents" };
+export type GhInfo = { ok: boolean; error?: string; issues: GhIssue[]; release: { tag: string; date: string; url: string } | null; ci: { name: string; title: string; status: string; conclusion: string; date: string; url: string }[]; ciNote?: string };
 export type AgentRun = { id: string; role: string; started: number; ended?: number; ok?: boolean; summary?: string; events: AgentRunEvent[] };
 export type TermProfile = { id: string; name: string; available: boolean };
 export type TermDir = { id: string; name: string; path: string; group: string; removable?: boolean };
@@ -58,6 +64,7 @@ export type Settings = {
   /** Renk temasi ve istege bagli vurgu rengi (#rrggbb, bos = temanin kendi rengi). */
   palette?: "kum" | "okyanus" | "orman" | "lavanta" | "klasik";
   accent?: string;
+  openAtLogin?: boolean;
 };
 
 type AtolyeApi = {
@@ -126,6 +133,16 @@ type AtolyeApi = {
     kill(id: number): Promise<void>;
     onData(cb: (id: number, data: string) => void): () => void;
     onExit(cb: (id: number, code: number) => void): () => void;
+  };
+  hub: {
+    status(): Promise<SyncStatus | null>;
+    robots(): Promise<RobotView[]>;
+    reports(): Promise<ReportItem[]>;
+    github(force: boolean): Promise<GhInfo>;
+    issue(repo: "app" | "agents", n: number): Promise<string>;
+    openApp(which: "antigravity" | "claudeUsage" | "claudeRoutines" | "github"): Promise<boolean>;
+    openUrl(url: string): Promise<boolean>;
+    onSynced(cb: (s: SyncStatus) => void): () => void;
   };
   assistant: {
     ask(question: string, scope: "notes" | "vault", model: "haiku" | "sonnet" | "opus"): Promise<string>;

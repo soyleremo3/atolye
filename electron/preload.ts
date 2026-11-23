@@ -84,6 +84,16 @@ contextBridge.exposeInMainWorld("atolye", {
       return () => ipcRenderer.removeListener("term:exit", l);
     },
   },
+  hub: {
+    status: () => invoke("hub:status"),
+    robots: () => invoke("hub:robots"),
+    reports: () => invoke("hub:reports"),
+    github: (force: boolean) => invoke("hub:github", force),
+    issue: (repo: string, n: number) => invoke("hub:issue", repo, n),
+    openApp: (which: string) => invoke("hub:openApp", which),
+    openUrl: (url: string) => invoke("hub:openUrl", url),
+    onSynced: (cb: (s: unknown) => void) => on("hub:synced", cb),
+  },
   assistant: {
     ask: (question: string, scope: string, model: string) => invoke("assistant:ask", question, scope, model),
     stop: () => invoke("assistant:stop"),

@@ -21,7 +21,7 @@ export function guessPaths(home: string): AgentsConfig {
   return { repoPath: existsSync(repo) ? repo : "", appPath: existsSync(app) ? app : "" };
 }
 
-async function readText(file: string): Promise<string> {
+export async function readText(file: string): Promise<string> {
   try {
     const st = await fs.stat(file);
     if (st.size > MAX_FILE) return `(dosya çok büyük: ${Math.round(st.size / 1024)} KB)`;
@@ -31,7 +31,7 @@ async function readText(file: string): Promise<string> {
   }
 }
 
-async function readJson<T>(file: string, fallback: T): Promise<T> {
+export async function readJson<T>(file: string, fallback: T): Promise<T> {
   try {
     return JSON.parse(await fs.readFile(file, "utf8")) as T;
   } catch {
@@ -39,7 +39,7 @@ async function readJson<T>(file: string, fallback: T): Promise<T> {
   }
 }
 
-async function listMd(dir: string): Promise<string[]> {
+export async function listMd(dir: string): Promise<string[]> {
   try {
     return (await fs.readdir(dir)).filter((n) => NAME.test(n)).sort().reverse();
   } catch {
@@ -58,7 +58,7 @@ export function frontMatter(text: string): { fm: Record<string, string>; body: s
   return { fm, body: text.slice(m[0].length) };
 }
 
-function run(cmd: string, args: string[], cwd: string, timeoutMs = 60_000): Promise<{ code: number; out: string }> {
+export function run(cmd: string, args: string[], cwd: string, timeoutMs = 60_000): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd, windowsHide: true });
     let out = "";
@@ -71,7 +71,7 @@ function run(cmd: string, args: string[], cwd: string, timeoutMs = 60_000): Prom
   });
 }
 
-function requireRepo(cfg: AgentsConfig): string {
+export function requireRepo(cfg: AgentsConfig): string {
   if (!cfg.repoPath || !existsSync(path.join(cfg.repoPath, "roster.json"))) throw new Error("Ajan reposu bulunamadı. Ajanlar → Ayarlar'dan basketball-agents klasörünü seç.");
   return cfg.repoPath;
 }
@@ -110,14 +110,26 @@ export async function readDoc(cfg: AgentsConfig, rel: string): Promise<string> {
   return readText(path.join(root, rel));
 }
 
+// Ayni repoda iki git islemi ayni anda calismasin (arka plan esitlemesi + onay/gorev yazimi)
+let gitChain: Promise<unknown> = Promise.resolve();
+export function withGitLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = gitChain.then(fn, fn);
+  gitChain = next.catch(() => undefined);
+  return next;
+}
+
 export async function sync(cfg: AgentsConfig): Promise<string> {
   const root = requireRepo(cfg);
-  const r = await run("git", ["pull", "--rebase", "--autostash"], root);
+  const r = await withGitLock(() => run("git", ["pull", "--rebase", "--autostash"], root));
   if (r.code !== 0) throw new Error(`Eşitleme olmadı (internet ya da git): ${r.out.slice(-300)}`);
   return r.out.trim().split("\n").pop() || "Güncel";
 }
 
-async function commitPush(root: string, files: string[], message: string): Promise<string> {
+function commitPush(root: string, files: string[], message: string): Promise<string> {
+  return withGitLock(() => commitPushNow(root, files, message));
+}
+
+async function commitPushNow(root: string, files: string[], message: string): Promise<string> {
   for (const f of files) {
     const a = await run("git", ["add", "--", f], root, 15_000);
     if (a.code !== 0) throw new Error(`git add: ${a.out.slice(-200)}`);

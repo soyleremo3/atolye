@@ -14,6 +14,10 @@ import { runSmoke } from "./smoke";
 import * as agents from "./agents";
 import * as terminal from "./terminal";
 import * as assistant from "./assistant";
+import * as hub from "./hub";
+
+/** Windows acilisinda baslatildiysa pencere simge durumunda acilir (arka planda esitleme yapar). */
+const STARTUP = process.argv.includes("--atolye-startup");
 
 const SCHEME = "atolye";
 const RENDERER_DIR = path.join(__dirname, "..", "dist");
@@ -42,6 +46,8 @@ type Settings = {
   };
   window: { x?: number; y?: number; width: number; height: number; maximized: boolean };
   agents?: agents.AgentsConfig;
+  /** Bilgisayar acilinca Atolye arka planda baslasin (otomatik esitleme icin). Varsayilan: acik. */
+  openAtLogin?: boolean;
   /** Terminal icin elle eklenen proje klasorleri. */
   termProjects?: string[];
   /** Yer imleri: kasa icindeki yollar. */
@@ -292,7 +298,11 @@ function createWindow(): void {
   // Pencere hicbir durumda gorunmez kalmasin: ready-to-show gelmezse 4 sn sonra yine de goster
   const current = win;
   const showNow = () => {
-    if (!current.isDestroyed() && !current.isVisible()) current.show();
+    if (current.isDestroyed() || current.isVisible()) return;
+    if (STARTUP) {
+      current.showInactive();
+      current.minimize();
+    } else current.show();
   };
   const showFallback = setTimeout(showNow, 4000);
   current.once("ready-to-show", () => {
@@ -392,7 +402,7 @@ function handle(channel: string, fn: Handler): void {
 function registerIpc(): void {
   handle("settings:get", () => ({ ...settings, dark: nativeTheme.shouldUseDarkColors }));
   handle("settings:set", (patch: Partial<Settings>) => {
-    const allowed: (keyof Settings)[] = ["theme", "fontSize", "editorFont", "readableWidth", "spellcheck", "defaultMode", "session", "bookmarks", "palette", "accent"];
+    const allowed: (keyof Settings)[] = ["theme", "fontSize", "editorFont", "readableWidth", "spellcheck", "defaultMode", "session", "bookmarks", "palette", "accent", "openAtLogin"];
     for (const key of allowed) if (patch && key in patch) (settings as any)[key] = (patch as any)[key];
     if (patch?.theme) {
       nativeTheme.themeSource = settings.theme;
@@ -401,6 +411,7 @@ function registerIpc(): void {
       win?.setBackgroundColor(bg);
     }
     if (patch && "spellcheck" in patch) win?.webContents.session.setSpellCheckerEnabled(!!settings.spellcheck);
+    if (patch && "openAtLogin" in patch) applyLoginItem();
     saveSettingsSoon();
     return { ...settings, dark: nativeTheme.shouldUseDarkColors };
   });
@@ -451,7 +462,7 @@ function registerIpc(): void {
 
   // ---------------------------------------------------------------- ajanlar
   const agentsCfg = (): agents.AgentsConfig => {
-    if (process.env.ATOLYE_AGENTS) return { repoPath: process.env.ATOLYE_AGENTS, appPath: "" };
+    if (process.env.ATOLYE_AGENTS) return { repoPath: process.env.ATOLYE_AGENTS, appPath: process.env.ATOLYE_APP ?? "" };
     if (!settings.agents?.repoPath) settings.agents = { ...agents.guessPaths(app.getPath("home")), ...(settings.agents?.appPath ? { appPath: settings.agents.appPath } : {}) };
     return settings.agents;
   };
@@ -465,7 +476,53 @@ function registerIpc(): void {
   });
   handle("agents:snapshot", () => agents.snapshot(agentsCfg()));
   handle("agents:read", (rel: string) => agents.readDoc(agentsCfg(), String(rel)));
-  handle("agents:sync", () => agents.sync(agentsCfg()));
+  handle("agents:sync", async () => {
+    const st = await hub.autoSync(agentsCfg());
+    win?.webContents.send("hub:synced", st);
+    if (!st.agents.ok) throw new Error(st.agents.text);
+    return st.agents.text;
+  });
+
+  // ---------------------------------------------------------------- merkez
+  // Arka planda 3 dakikada bir: Antigravity sonuclarini kaydet/gonder, bulutu ajan ve uygulama reposuna indir.
+  // Testte gercek repolara dokunulmaz (ATOLYE_SMOKE varken yalniz gecici ATOLYE_AGENTS reposu).
+  const backgroundOk = !process.env.ATOLYE_SMOKE || !!process.env.ATOLYE_AGENTS;
+  const background = async () => {
+    if (!backgroundOk) return;
+    try {
+      win?.webContents.send("hub:synced", await hub.autoSync(agentsCfg()));
+    } catch {
+      /* ajan reposu secilmemis */
+    }
+  };
+  setTimeout(() => void background(), 8_000);
+  setInterval(() => void background(), 3 * 60_000);
+  handle("hub:status", () => hub.getSyncStatus());
+  handle("hub:robots", () => hub.robots(agentsCfg()));
+  handle("hub:reports", () => hub.allReports(agentsCfg()));
+  handle("hub:github", (force: boolean) => hub.github(agentsCfg(), !!force));
+  handle("hub:issue", (repo: "app" | "agents", n: number) => hub.issueBody(agentsCfg(), repo === "app" ? "app" : "agents", Number(n)));
+  handle("hub:openApp", async (which: string) => {
+    if (which === "antigravity") {
+      const exe = path.join(process.env.LOCALAPPDATA || "", "Programs", "Antigravity", "Antigravity.exe");
+      const err = await shell.openPath(exe);
+      if (err) throw new Error("Antigravity bulunamadı: " + err);
+      return true;
+    }
+    const urls: Record<string, string> = {
+      claudeUsage: "https://claude.ai/settings/usage",
+      claudeRoutines: "https://claude.ai/code/routines",
+      github: "https://github.com/soyleremo3",
+    };
+    if (!urls[which]) throw new Error("Bilinmeyen bağlantı");
+    openExternalSafe(urls[which]);
+    return true;
+  });
+  handle("hub:openUrl", (url: string) => {
+    if (!/^https:\/\/github\.com\/soyleremo3\//.test(String(url))) throw new Error("Yalnız GitHub bağlantıları");
+    openExternalSafe(String(url));
+    return true;
+  });
   handle("agents:decide", (name: string, decision: "approved" | "rejected", note: string) => agents.decide(agentsCfg(), String(name), decision, String(note ?? "")));
   handle("agents:newTask", (title: string, body: string, forWho: "claude" | "agy") => agents.newTask(agentsCfg(), String(title), String(body ?? ""), forWho));
   handle("agents:note", (text: string, roles: string) => agents.ownerNote(agentsCfg(), String(text), String(roles ?? "")));
@@ -663,6 +720,7 @@ async function start(): Promise<void> {
   }
   registerIpc();
   createWindow();
+  applyLoginItem();
 
   nativeTheme.on("updated", () => win?.webContents.send("theme:changed", nativeTheme.shouldUseDarkColors));
   app.on("window-all-closed", () => app.quit());
@@ -671,6 +729,12 @@ async function start(): Promise<void> {
     vault?.unwatch();
     void saveSettingsNow();
   });
+}
+
+/** Bilgisayar acilinca Atolye arka planda (simge durumunda) baslasin: otomatik esitleme hep calissin. */
+function applyLoginItem(): void {
+  if (!app.isPackaged || process.env.ATOLYE_SMOKE || process.env.ATOLYE_USER_DATA) return;
+  app.setLoginItemSettings({ openAtLogin: settings.openAtLogin !== false, args: ["--atolye-startup"] });
 }
 
 // Disaridan gelen tum web iceriklerinde ek koruma
