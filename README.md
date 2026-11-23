@@ -31,8 +31,15 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 ## Yönetici tuşu (v1.9, `Ctrl+Alt+G`)
 
 - Merkez → **Yöneticiyi çalıştır**: yönetici **bu bilgisayarda** başlar (`claude -p`, Opus, ajan reposunda, uygulama reposu `--add-dir`). Panoya, raporlara ve yapılacaklara bakıp **en fazla 5 işi** ajanlara dağıtır; Claude işçileri (auto-worker-opus / auto-worker / auto-scout) aynı çalışmada bu PC'de sırayla çalışır, Google araştırmaları Antigravity'ye bilet olur. Önce onay kutusu; *Canlı izle* ve *Durdur*. Çalışırken otomatik git eşitlemesi bekler.
-- Yasaklı: build, `npm ci/install` (sahibin çalışma kopyası), zorla gönderme, `git reset --hard/clean`. İzin ve yasak kurallarının `rtk ` önekli biçimleri de verilir (bu PC'deki rtk kancası komutları yeniden yazar; denendi).
-- Atölye `agy`'yi çalıştırmaz: Antigravity SSS'sine göre bireysel planlarda agy'yi başka bir uygulamanın içinden çalıştırmak desteklenmiyor. Antigravity kendi otomasyonlarıyla bu PC'de çalışır.
+- Yasaklı: build, `npm ci/install` (sahibin çalışma kopyası), zorla gönderme, `git reset --hard/clean`. İzin ve yasak kurallarının `rtk ` önekli biçimleri de verilir (bu PC'deki rtk kancası komutları yeniden yazar: `npx eslint` → `rtk lint`, `npx jest` → `rtk jest`, `npx tsc` → `rtk tsc`; hepsi denendi).
+- Atölye `agy`'yi çalıştırmaz: Antigravity SSS'sine göre bireysel planlarda agy'yi başka bir uygulamanın içinden çalıştırmak desteklenmiyor.
+
+## Antigravity'yi buradan başlatma (v1.10, hesap için güvenli yol)
+
+- Atölye yalnız ajan reposuna istek dosyası bırakır (`.atolye/agy-now.json`, git'e girmez). İşi **Antigravity'nin kendisi** başlatır: belgelenmiş bir `schedule` otomasyonu (**Atölye: şimdi çalıştır**) dakikada bir küçük bir node betiği çalıştırır; istek yoksa hiçbir şey yapmaz ve model kullanmaz, istek varsa seçilen otomasyonu (görev alıcı, eleştirmen, medya, haberler) o otomasyonun **kendi istemi ve modeliyle** `agentapi new-conversation` ile başlatır. İstek dosyası istem taşıyamaz; 10 dakikadan eski istek çalışmaz.
+- Merkez → Robotlar: *Köprüyü kur* (Antigravity'de Paused olarak görünür; açmak sahibin işi) → açıkken çalışmayan Antigravity işlerinin yanında **Şimdi** (onay sorar). Yedek yol: Antigravity → Automations → **Run Now**.
+- Antigravity'de "Run Now" ya da köprüyle başlayan işler zamanlayıcı kaydına düşmez; Atölye onları sohbetin ilk mesajından (otomasyonun istemi) tanır.
+- Test: `npm run test:bridge` (sahte Antigravity evi + sahte agentapi, 12 kontrol); `scripts/make-agy-fixture.cjs` Merkez testinin sahte kayıtlarını üretir.
 - **Bulutta çalıştır** (ikinci seçenek): buluttaki yönetici rutini resmi `routines/{id}/fire` ucuyla başlar. Anahtar bir kez: claude.ai → Rutinler → manager → Edit → Trigger + → API → Generate token; Windows şifreli deposunda (safeStorage) durur, arayüze dönmez. Gövdede yalnız mod işareti (`atolye-owner-run`).
 - Aynı anda tek yönetici (yerel ya da bulut). Ücret yok: Claude Pro kullanımından düşer.
 - Test: `ATOLYE_SMOKE_PHASE=manager` (sahte claude + yerel sahte sunucu; gerçek kotaya dokunmaz).

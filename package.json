@@ -1,7 +1,7 @@
 {
   "name": "atolye",
   "productName": "Atolye",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "Yazılımcılar için yerel çalışma alanı: notlar, kod parçaları, görev panosu, HTTP istemcisi ve geliştirici araçları",
   "author": "soyleremo3",
   "private": true,
@@ -11,7 +11,8 @@
     "build": "node scripts/copy-assets.mjs && node scripts/build-electron.mjs && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "electron .",
-    "dist": "npm run build && electron-builder --dir"
+    "dist": "npm run build && electron-builder --dir",
+    "test:bridge": "esbuild electron/agyBridge.ts --bundle --platform=node --format=cjs --outfile=dist-test/agyBridge.cjs --log-level=warning && node scripts/test-agy-bridge.cjs dist-test/agyBridge.cjs"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.4",
