@@ -28,6 +28,10 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Gün özeti (v1.11)
+
+Merkez → **Gün özeti**: seçilen günde ne yapıldı, tek kartta (‹ önceki gün · Bugün · sonraki gün ›). Ajanların rapor yazmasına bağlı değil; gerçek kayıtlardan toplanır: yöneticinin `raporlar/gunluk/<gün>.md` satırları, uygulama reposuna o gün giren commit'ler (Yeni / Düzeltme / Sürüm…), `durum.json`'u o gün güncellenen ajanlar, o gün yazılan sonuçlar (`board/results`, `raporlar/haftalik|aylik`; tıklayınca açılır), o gün açılan ya da karar verilen onaylar, `Basketball-APP-Posts` sosyal medya kayıtları (`gh`, 5 dk önbellek). Yönetici artık iş seçer seçmez günlük rapora "başladı" satırı yazar (playbooks/manager.md), yarıda kalan çalışma da görünür.
+
 ## Yönetici tuşu (v1.9, `Ctrl+Alt+G`)
 
 - Merkez → **Yöneticiyi çalıştır**: yönetici **bu bilgisayarda** başlar (`claude -p`, Opus, ajan reposunda, uygulama reposu `--add-dir`). Panoya, raporlara ve yapılacaklara bakıp **en fazla 5 işi** ajanlara dağıtır; Claude işçileri (auto-worker-opus / auto-worker / auto-scout) aynı çalışmada bu PC'de sırayla çalışır, Google araştırmaları Antigravity'ye bilet olur. Önce onay kutusu; *Canlı izle* ve *Durdur*. Çalışırken otomatik git eşitlemesi bekler.
