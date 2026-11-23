@@ -91,6 +91,8 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     process.env.ATOLYE_FIRE_URL = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
     const fake = "sk-ant-oat01-" + "T".repeat(40);
     const toastText = () => js(`[...document.querySelectorAll('.toast')].map(t => t.textContent).join(' | ')`) as Promise<string>;
+    // kopyalanan gercek repoda yonetici o an calisiyor olabilir: test bos durumdan baslasin
+    writeFileSync(path.join(process.env.ATOLYE_AGENTS || "", "roller", "manager", "durum.json"), JSON.stringify({ role: "manager", number: "11", model: "claude-opus", state: "done", lastRun: "2026-11-01T00:00:00+03:00", did: "", next: "", blockedOn: "" }));
     try {
       await wait(2500);
       await key("J", ["control", "alt"]);
@@ -122,8 +124,8 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       const lr = await js(`document.querySelector('.hub-manager')?.textContent || ''`);
       check("yerel: kart 'Bu PC'de çalışıyor' + adımlar", /Bu PC'de çalışıyor/.test(lr) && /Yönetici çalışıyor/.test(lr), lr.slice(0, 180));
       const pill = await js(`document.querySelector('.hub-strip')?.textContent || ''`);
-      const mgrLive = await js(`window.atolye.hub.robots().then(r => r.find(x => x.id === 'manager')?.live?.note || '')`);
-      check("yerel: üst şeritte '1 ajan çalışıyor', Robotlar'da yönetici bu PC'de", /1 ajan çalışıyor/.test(pill) && /bu PC'de/.test(mgrLive), `${pill.slice(0, 90)} | ${mgrLive}`);
+      const mgrLive = await js(`window.atolye.hub.robots().then(r => { const m = r.find(x => x.id === 'manager'); return (m?.where || '') + ' ' + (m?.live?.note || ''); })`);
+      check("yerel: üst şeritte '1 ajan çalışıyor', Robotlar'da yönetici 'Bu PC'", /1 ajan çalışıyor/.test(pill) && /^pc .*bu PC'de/.test(mgrLive), `${pill.slice(0, 90)} | ${mgrLive}`);
       await shot("manager-local-running");
       const twice = await js(`window.atolye.manager.runLocal().then(() => 'başladı', e => String(e.message))`);
       check("yerel: çalışırken ikinci yönetici başlamaz", /bu PC'de çalışıyor/.test(twice), twice);
