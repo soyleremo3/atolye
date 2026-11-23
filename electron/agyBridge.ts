@@ -127,7 +127,7 @@ export async function requestRun(repo: string, which: string): Promise<BridgeSta
   if (!st.installed) throw new Error("Antigravity köprüsü kurulu değil (Merkez → Robotlar → Köprüyü kur).");
   if (!st.enabled) throw new Error("Antigravity'de 'Atölye: şimdi çalıştır' otomasyonu kapalı: Antigravity → Automations → Paused → aç.");
   if (st.request && (!st.result || st.result.id !== st.request.id) && Date.now() - new Date(st.request.at).getTime() < STALE_MIN * 60_000) {
-    throw new Error("Önceki istek henüz Antigravity'ye ulaşmadı; bir dakika bekle (Antigravity açık mı?).");
+    throw new Error("Önceki istek henüz Antigravity'ye ulaşmadı; 1–2 dakika bekle (Antigravity açık mı?).");
   }
   const runs = await agyRuns();
   if (runs[which]?.state === "running") throw new Error("Bu Antigravity işi zaten çalışıyor.");

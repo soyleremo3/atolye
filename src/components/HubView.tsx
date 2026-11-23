@@ -75,7 +75,7 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
     setAsk(null);
     try {
       setBridge(await api.hub.agyNow(which));
-      toast("Antigravity'ye iletildi; en geç 1 dakikada kendisi başlatır.");
+      toast("Antigravity'ye iletildi; 1–2 dakika içinde kendisi başlatır.");
     } catch (e) {
       toast(errText(e), "error");
     }
@@ -131,7 +131,7 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
                     <i className={`hub-dot ${r.live?.state === "running" ? "live" : r.live?.state === "failed" ? "bad" : "on"}`} /> <b>{r.ad}</b>
                     {r.live?.state === "running" && <span className="hub-tag live">Şu an çalışıyor · {r.live.note}</span>}
                     {r.live?.state === "failed" && <span className="hub-tag bad" title={`Başladı: ${when(r.live.started)}`}>Son çalışma: {r.live.note}</span>}
-                    {r.live?.state !== "running" && waiting(r.sidecar) && <span className="hub-tag live">Antigravity'ye iletildi · 1 dk içinde başlar</span>}
+                    {r.live?.state !== "running" && waiting(r.sidecar) && <span className="hub-tag live">Antigravity'ye iletildi · 1–2 dk içinde başlar</span>}
                     {r.live?.state !== "running" && !waiting(r.sidecar) && bridgeError(r.sidecar) && <span className="hub-tag bad">{bridgeError(r.sidecar)}</span>}
                     <div className="muted small">{r.what}</div>
                   </td>
