@@ -78,6 +78,8 @@ if (m) write({ ok: true, state: "started", conversationId: m[1] });
 else write({ ok: false, error: ("Antigravity işi başlatamadı: " + String(out.stderr || out.stdout || (out.error && out.error.message) || "")).slice(0, 300) });
 `;
 
+const fwd = (p: string) => p.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_m, d: string) => `${d.toLowerCase()}:`);
+
 /** sidecar.json: belgelenmis "schedule" otomasyonu; Automations sekmesinde "Paused" olarak gorunur, sahip acar. */
 export function bridgeSidecar(repo: string, nodeExe: string): unknown {
   return {
@@ -88,7 +90,8 @@ export function bridgeSidecar(repo: string, nodeExe: string): unknown {
     description: "Dakikada bir Atölye'nin isteğine bakar. İstek yoksa hiçbir şey yapmaz ve model kullanmaz. İstek varsa seçilen otomasyonu (görev alıcı, eleştirmen, medya, haberler) kendi istemi ve modeliyle hemen başlatır.",
     agent_permissions: {
       workspace_uris: [`file:///${repo.replace(/\\/g, "/").replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/").replace(/^([A-Za-z])%3A/, (_m, d: string) => `${d.toLowerCase()}:`)}`],
-      access_grants: [`read_file(${repo.replace(/\\/g, "/")})`, `write_file(${repo.replace(/\\/g, "/")})`],
+      // diger otomasyonlarla ayni bicim: kucuk surucu harfi, egik cizgi
+      access_grants: [`read_file(${fwd(repo)})`, `write_file(${fwd(repo)})`],
     },
   };
 }
