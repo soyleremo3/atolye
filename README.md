@@ -28,6 +28,13 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Yönetici tuşu (v1.8, `Ctrl+Alt+G`)
+
+- Merkez → **Yöneticiyi çalıştır**: buluttaki Claude yönetici rutinini hemen başlatır (resmi `routines/{id}/fire` ucu). Yönetici panoya, raporlara ve yapılacaklara bakıp **en fazla 5 işi** ajanlara dağıtır (zamanlanmış çalışmalar 3). Önce bir onay kutusu çıkar; yönetici zaten çalışıyorsa tuş bekler.
+- Kurulum bir kez: claude.ai → Rutinler → manager → Edit → Trigger + → API → Generate token; anahtar Merkez'e yapıştırılır. Windows şifreli deposunda (safeStorage) durur, arayüze ve dosyalara dönmez. Gövdede yalnız mod işareti gider (`atolye-owner-run`).
+- Ücret yok: Claude Pro kullanımından düşer; saatte en çok 30 tetikleme.
+- Test: `ATOLYE_SMOKE_PHASE=manager` (yerel sahte sunucu; gerçek kotaya dokunmaz).
+
 ## Kontrol merkezi (v1.7, `Ctrl+Alt+J`)
 
 - **Merkez** sekmesi: robotlar (bulut / bu PC, sıradaki ve son çalışma), eşitleme durumu, bekleyen onaylar, tüm raporlar (bulut + bu PC), GitHub (açık issue'lar, son sürüm, CI ve CI neden durdu), tek tıkla Claude Code / Codex / Antigravity.
@@ -83,7 +90,7 @@ Duman testi: `ATOLYE_AGENTS=<geçici ajan reposu> ATOLYE_SMOKE_PHASE=agents`.
 ## Güvenlik
 - Electron güvenlik önerileri: `contextIsolation`, `sandbox`, sıkı CSP, uygulama sadece kendi `atolye://` protokolünden yüklenir.
 - Dosya erişimi seçtiğin kasa klasörüyle sınırlı; silinen dosyalar Geri Dönüşüm Kutusu'na gider; kayıtlar atomik.
-- İnternete sadece HTTP istemcisinde **sen "Gönder"e bastığında** çıkar (http/https, zaman aşımı, 5 MB yanıt sınırı).
+- İnternete sadece HTTP istemcisinde **sen "Gönder"e bastığında** çıkar (http/https, zaman aşımı, 5 MB yanıt sınırı); ayrıca Merkez'in git/`gh` eşitlemesi ve **Yöneticiyi çalıştır** tuşu (yalnız `api.anthropic.com`, rutin anahtarıyla).
 
 ## Geliştirme
 ```bash
