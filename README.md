@@ -28,12 +28,14 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
-## Yönetici tuşu (v1.8, `Ctrl+Alt+G`)
+## Yönetici tuşu (v1.9, `Ctrl+Alt+G`)
 
-- Merkez → **Yöneticiyi çalıştır**: buluttaki Claude yönetici rutinini hemen başlatır (resmi `routines/{id}/fire` ucu). Yönetici panoya, raporlara ve yapılacaklara bakıp **en fazla 5 işi** ajanlara dağıtır (zamanlanmış çalışmalar 3). Önce bir onay kutusu çıkar; yönetici zaten çalışıyorsa tuş bekler.
-- Kurulum bir kez: claude.ai → Rutinler → manager → Edit → Trigger + → API → Generate token; anahtar Merkez'e yapıştırılır. Windows şifreli deposunda (safeStorage) durur, arayüze ve dosyalara dönmez. Gövdede yalnız mod işareti gider (`atolye-owner-run`).
-- Ücret yok: Claude Pro kullanımından düşer; saatte en çok 30 tetikleme.
-- Test: `ATOLYE_SMOKE_PHASE=manager` (yerel sahte sunucu; gerçek kotaya dokunmaz).
+- Merkez → **Yöneticiyi çalıştır**: yönetici **bu bilgisayarda** başlar (`claude -p`, Opus, ajan reposunda, uygulama reposu `--add-dir`). Panoya, raporlara ve yapılacaklara bakıp **en fazla 5 işi** ajanlara dağıtır; Claude işçileri (auto-worker-opus / auto-worker / auto-scout) aynı çalışmada bu PC'de sırayla çalışır, Google araştırmaları Antigravity'ye bilet olur. Önce onay kutusu; *Canlı izle* ve *Durdur*. Çalışırken otomatik git eşitlemesi bekler.
+- Yasaklı: build, `npm ci/install` (sahibin çalışma kopyası), zorla gönderme, `git reset --hard/clean`. İzin ve yasak kurallarının `rtk ` önekli biçimleri de verilir (bu PC'deki rtk kancası komutları yeniden yazar; denendi).
+- Atölye `agy`'yi çalıştırmaz: Antigravity SSS'sine göre bireysel planlarda agy'yi başka bir uygulamanın içinden çalıştırmak desteklenmiyor. Antigravity kendi otomasyonlarıyla bu PC'de çalışır.
+- **Bulutta çalıştır** (ikinci seçenek): buluttaki yönetici rutini resmi `routines/{id}/fire` ucuyla başlar. Anahtar bir kez: claude.ai → Rutinler → manager → Edit → Trigger + → API → Generate token; Windows şifreli deposunda (safeStorage) durur, arayüze dönmez. Gövdede yalnız mod işareti (`atolye-owner-run`).
+- Aynı anda tek yönetici (yerel ya da bulut). Ücret yok: Claude Pro kullanımından düşer.
+- Test: `ATOLYE_SMOKE_PHASE=manager` (sahte claude + yerel sahte sunucu; gerçek kotaya dokunmaz).
 
 ## Kontrol merkezi (v1.7, `Ctrl+Alt+J`)
 
