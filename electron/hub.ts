@@ -173,7 +173,9 @@ export async function robots(cfg: AgentsConfig): Promise<RobotView[]> {
     let last = await lastOf(root, r.last);
     // Antigravity'nin kendi kaydi daha yeniyse son calisma odur (rapor dosyasi yazilmasa da)
     if (run && run.state !== "running" && (!last || run.updated > last)) last = run.updated;
-    return { id: r.id, ad: r.ad, where: r.where, cron: r.cron, model: r.model, what: r.what, next: nextRun(r.cron)?.toISOString() ?? null, last, live: run };
+    // Bulut robotu su an bu PC'de calisiyorsa (yonetici tusu) "Nerede" o anki yeri gostersin
+    const where = r.id === "manager" && isRunning("manager") ? "pc" : r.where;
+    return { id: r.id, ad: r.ad, where, cron: r.cron, model: r.model, what: r.what, next: nextRun(r.cron)?.toISOString() ?? null, last, live: run };
   }));
 }
 

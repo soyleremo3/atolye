@@ -67,7 +67,7 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
 
   const run = (p: Promise<unknown>) => void p.catch((e) => toast(errText(e), "error"));
   // ajan sayisi: Claude rolleri + calisan Antigravity otomasyonlari (rol eslemesi cift sayilmasin)
-  const agyRunning = robots.filter((r) => r.where === "pc" && r.live?.state === "running");
+  const agyRunning = robots.filter((r) => r.id !== "manager" && r.where === "pc" && r.live?.state === "running");
   const claudeWorking = snap.roles.filter((r) => r.live?.state === "working" && r.live.source !== "antigravity");
   // yonetici calisiyor ama durum dosyasini henuz yazmadiysa da say
   const mgrOnly = robots.some((r) => r.id === "manager" && r.live?.state === "running") && !claudeWorking.some((r) => r.id === "manager") ? 1 : 0;
