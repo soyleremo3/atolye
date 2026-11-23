@@ -33,6 +33,7 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 - **Merkez** sekmesi: robotlar (bulut / bu PC, sıradaki ve son çalışma), eşitleme durumu, bekleyen onaylar, tüm raporlar (bulut + bu PC), GitHub (açık issue'lar, son sürüm, CI ve CI neden durdu), tek tıkla Claude Code / Codex / Antigravity.
 - **Otomatik eşitleme** (3 dk'da bir, ana süreçte): Antigravity'nin yazdığı sonuçları (yalnız board/, roller/*/durum.json|defter.md, raporlar/) kaydedip gönderir, bulutu ajan reposuna indirir; uygulama reposunu yalnız ileri sarar (kaydedilmemiş ya da gönderilmemiş iş varsa dokunmaz).
 - Bilgisayar açılınca Atölye simge durumunda başlar (Merkez'den kapatılabilir).
+- **Antigravity canlı (v1.7.1):** Antigravity otomasyonu bu PC'de çalışırken Merkez'de "Şu an çalışıyor", ofiste ilgili rol "çalışıyor" görünür; hata verirse nedeni yazar (ör. internet yok). Kaynak: Antigravity'nin kendi kayıtları (`~/.gemini`), yalnız okunur.
 - Ajanlar artık "hazır" görünür (uyanık oturur); yalnız planlı rol uyur.
 
 ## Performans (v1.6)
