@@ -67,6 +67,7 @@
 
 @keyframes office-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.75); } }
 .office .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #c9b9a6; flex: none; }
+.office .dot.ready { background: #34a853; width: 6px; height: 6px; margin-right: 4px; vertical-align: 0; }
 .office .dot.live { background: var(--o-accent); animation: office-pulse 1.2s ease-in-out infinite; }
 
 /* sol ust: selamlama */

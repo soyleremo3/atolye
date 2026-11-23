@@ -21,7 +21,7 @@ type Props = {
 
 /** Gizli ofisin 3B sahnesi bu sureden sonra kapatilir (bellek geri gelir). */
 const RELEASE_AFTER_MS = 30_000;
-const STATE_TR: Record<OfficeState, string> = { idle: "Uyuyor", working: "Çalışıyor", done: "Bitirdi", failed: "Hata", blocked: "Takıldı", planned: "Planlı" };
+const STATE_TR: Record<OfficeState, string> = { idle: "Hazır", working: "Çalışıyor", done: "Bitirdi", failed: "Hata", blocked: "Takıldı", planned: "Planlı" };
 const provider = (m: string): OfficeAgent["provider"] => (m.startsWith("claude-") ? "claude" : m.startsWith("google-") ? "google" : "none");
 const short = (s: string) => s.replace(/\s*\(.*\)\s*$/, "").split(/\s+/).slice(0, 3).join(" ");
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -99,7 +99,7 @@ export function AgentsOffice3D({ snap, active, onOpen, onRun, onApprovals, onCha
           : state === "blocked" ? `takıldı: ${clip(live?.blockedOn || "", 40)}`
           : state === "failed" ? `hata · ${ago(live?.lastRun)}`
           : state === "done" ? `bitti · ${ago(live?.lastRun)}`
-          : `uyuyor · ${live?.lastRun ? `son iş ${ago(live.lastRun)}` : "hiç çalışmadı"}`;
+          : `hazır · ${r.zaman ? `${clip(r.zaman, 34)} · ` : ""}${live?.lastRun ? `son iş ${ago(live.lastRun)}` : "henüz iş almadı"}`;
         return { id: r.id, number: r.number, label: short(r.ad ?? r.name), team: r.team, provider: provider(r.model), lead: r.id === "manager", state, line };
       }),
     [snap.roles, running, ago],
@@ -181,7 +181,7 @@ export function AgentsOffice3D({ snap, active, onOpen, onRun, onApprovals, onCha
         <small>{new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" })}</small>
         <h2>{greeting()}</h2>
         <p>
-          Ofiste <b>{counts.working} ajan</b> çalışıyor, <b>{counts.idle} ajan</b> uyuyor
+          Ofiste <b>{counts.working} ajan</b> çalışıyor, <b>{counts.idle} ajan</b> hazır bekliyor
           {counts.planned ? <>, {counts.planned} planlı</> : null}. Boştayken harcama: <b>0</b>.
         </p>
         {lastCloud?.lastRun && <p>Yönetici en son <b>{ago(lastCloud.lastRun)}</b> çalıştı: {clip(lastCloud.did || "—", 90)}</p>}

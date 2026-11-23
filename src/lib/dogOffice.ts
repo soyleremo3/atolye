@@ -1,7 +1,7 @@
 /**
  * Kopek ofisi v2: krem bir masa maketi uzerinde her ajanin kendi odasi; odada masa, laptop, kopek yatagi,
  * hali, bitki, cerceve. Kopek durumunu yumusak gecislerle gosterir. Her sey prosedureldir (dosya/model yok).
- *  uyuyor  = yataginda kivrilir, nefes alir, "z" yukselir
+ *  hazir   = uyanik, yataginin yaninda oturur, kuyrugunu yavasca sallar (planli rol yataginda uyur)
  *  calisiyor = sandalyede laptopa bakar, patileri yazar, ekran parlar; yoneticiden is noktalari akar
  *  bitti   = kuyruk sallar, bir kez ziplar · takildi = kafa egik · hata = kulaklar duser · planli = soluk oda
  * Kartlar HTML (CSS2DRenderer): net yazi, buzlu cam gorunumu.
@@ -20,7 +20,7 @@ export type OfficeAgent = {
   provider: "claude" | "google" | "none";
   state: OfficeState;
   lead?: boolean;
-  /** Kartin ikinci satiri: "uyuyor · 3 sa once" ya da canli is. */
+  /** Kartin ikinci satiri: "hazir · 3 sa once" ya da canli is. */
   line: string;
 };
 export type OfficeHit = { kind: "agent"; id: string } | { kind: "approvals" };
@@ -809,7 +809,7 @@ export class DogOffice {
     room.card.title = `${a.number} · ${a.label} — ${a.line}`;
     // uyuyan/planli: tek satirlik kucuk etiket (ad + kisa durum); digerleri iki satir, renkli
     room.card.innerHTML = quiet
-      ? `<b>${escHtml(a.number)} · ${escHtml(a.label)}</b><span>${st === "planned" ? "planlı" : "uyuyor"}</span>`
+      ? `<b>${escHtml(a.number)} · ${escHtml(a.label)}</b><span>${st === "planned" ? "planlı" : '<i class="dot ready"></i>hazır'}</span>`
       : `<b>${escHtml(a.number)} · ${escHtml(a.label)}</b><span>${mark}${escHtml(a.line)}</span>`;
   }
 
@@ -902,7 +902,9 @@ export class DogOffice {
       return { x: room.chairPos.x, y: 0.58, z: room.chairPos.z + 0.04, rot: 0, sit: 1, curl: 0, head: st === "blocked" ? 0.15 : -0.12, tilt: st === "blocked" ? 0.38 : 0, ears: 0 };
     if (st === "done") return { x: room.bedPos.x + 0.9, y: 0.12, z: room.bedPos.z - 0.35, rot: 0.35, sit: 1, curl: 0, head: -0.1, tilt: 0, ears: 0 };
     if (st === "failed") return { x: room.bedPos.x + 0.9, y: 0.12, z: room.bedPos.z - 0.35, rot: 0.2, sit: 0.4, curl: 0, head: 0.45, tilt: 0, ears: 1 };
-    return { x: room.bedPos.x, y: 0.2, z: room.bedPos.z, rot: 0.9, sit: 0, curl: 1, head: 0.55, tilt: 0, ears: 0.4 };
+    // planli (henuz kurulmamis) rol yataginda uyur; hazir (siradaki isini bekleyen) rol uyanik, yataginin yaninda oturur
+    if (st === "planned") return { x: room.bedPos.x, y: 0.2, z: room.bedPos.z, rot: 0.9, sit: 0, curl: 1, head: 0.55, tilt: 0, ears: 0.4 };
+    return { x: room.bedPos.x + 0.75, y: 0.12, z: room.bedPos.z - 0.25, rot: 0.55, sit: 1, curl: 0, head: -0.05, tilt: 0, ears: 0.15 };
   }
 
   private animateDog(room: Room, t: number, dt: number) {
@@ -924,11 +926,12 @@ export class DogOffice {
     // (model -z'ye bakar; +x donusu gogsu kaldirir)
     dog.body.rotation.x = p.sit * 0.85;
     dog.head.rotation.x = p.head - p.sit * 0.8 + (st === "working" ? Math.sin(ph * 5) * 0.06 : 0);
-    dog.head.rotation.z = p.tilt;
+    // hazirken ara sira etrafa bakar
+    dog.head.rotation.z = p.tilt + (st === "idle" ? Math.sin(ph * 0.7) * 0.12 : 0);
     dog.head.position.y = 0.66 - p.curl * 0.22;
     dog.earL.rotation.z = p.ears * 0.6;
     dog.earR.rotation.z = -p.ears * 0.6;
-    const wag = st === "done" ? 9 : st === "working" ? 4 : 0;
+    const wag = st === "done" ? 9 : st === "working" ? 4 : st === "idle" ? 1.6 : 0;
     dog.tail.rotation.y = wag ? Math.sin(ph * wag) * 0.7 : dog.tail.rotation.y * 0.9;
     dog.tail.rotation.x = st === "failed" ? 0.9 : 0;
     const typing = st === "working" ? 1 : 0;
