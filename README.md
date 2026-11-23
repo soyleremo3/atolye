@@ -28,6 +28,13 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Kontrol merkezi (v1.7, `Ctrl+Alt+J`)
+
+- **Merkez** sekmesi: robotlar (bulut / bu PC, sıradaki ve son çalışma), eşitleme durumu, bekleyen onaylar, tüm raporlar (bulut + bu PC), GitHub (açık issue'lar, son sürüm, CI ve CI neden durdu), tek tıkla Claude Code / Codex / Antigravity.
+- **Otomatik eşitleme** (3 dk'da bir, ana süreçte): Antigravity'nin yazdığı sonuçları (yalnız board/, roller/*/durum.json|defter.md, raporlar/) kaydedip gönderir, bulutu ajan reposuna indirir; uygulama reposunu yalnız ileri sarar (kaydedilmemiş ya da gönderilmemiş iş varsa dokunmaz).
+- Bilgisayar açılınca Atölye simge durumunda başlar (Merkez'den kapatılabilir).
+- Ajanlar artık "hazır" görünür (uyanık oturur); yalnız planlı rol uyur.
+
 ## Performans (v1.6)
 
 - Açılış dosyası 2,4 MB → 0,75 MB: 3B ofis, terminal, grafik, araçlar, pano ve dışa aktarma ilk açıldıklarında yüklenir (düğmenin üstüne gelince önceden indirilir). KaTeX ve kod renklendirme açılıştan sonra boş anda yüklenir.
