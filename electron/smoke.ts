@@ -81,6 +81,15 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       await key("J", ["control", "alt"]);
       await wait(2500);
       const roles = JSON.parse(rd("roster.json")).roles.length;
+      // Merkez: varsayilan sekme; robotlar (schedule.json + otomatik esitleme satiri), raporlar, araclar
+      const robotsN = JSON.parse(rd("schedule.json") || '{"robots":[]}').robots.length;
+      await wait(1500);
+      const hub = await js(`(() => ({ on: !!document.querySelector('.hub'), robots: document.querySelectorAll('.hub-robots tbody tr').length, reports: document.querySelectorAll('.hub-reports .hub-list li button').length, launch: [...document.querySelectorAll('.hub-launch button')].map(b => b.textContent).join('|') }))()`);
+      check("merkez: varsayılan sekme, robotlar + eşitleme satırı", hub.on && hub.robots === robotsN + 1, `${hub.robots} satır / ${robotsN} robot`);
+      check("merkez: raporlar listede (bulut + bu PC)", hub.reports > 0, `${hub.reports} rapor`);
+      check("merkez: Claude Code, Codex, Antigravity düğmeleri", /Claude Code/.test(hub.launch) && /Codex/.test(hub.launch) && /Antigravity/.test(hub.launch), hub.launch);
+      await shot("ag-hub");
+      await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Ofis')).click()`);
       await wait(1500);
       const canvas = await js(`(() => { const c = document.querySelector('.office-stage canvas'); return c ? c.width * c.height : 0; })()`);
       check("ajanlar: 3B köpek ofisi çizildi", canvas > 0, `canvas ${canvas}`);
@@ -357,6 +366,8 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       await key("J", ["control", "alt"]);
       const tOff = Date.now();
       for (let i = 0; i < 200; i++) {
+        // Merkez varsayilan sekme: Ofis'e gec
+        await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Ofis') && !b.classList.contains('on'))?.click()`);
         if (await js(`(() => { const c = document.querySelector('.office-stage canvas'); return !!c && c.width > 0; })()`)) break;
         await wait(25);
       }
@@ -391,6 +402,28 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     }
     await fs.writeFile(path.join(outDir, "perf.json"), JSON.stringify(res, null, 2), "utf8");
     await fs.writeFile(path.join(outDir, "log.txt"), `PERF ${JSON.stringify(res)}\nyakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`, "utf8");
+    app.quit();
+    return;
+  }
+
+  // Merkez gercek verilerle (salt okunur goruntu; ATOLYE_AGENTS ve ATOLYE_APP gercek repolar)
+  if (phase === "hub") {
+    try {
+      await wait(2500);
+      await key("J", ["control", "alt"]);
+      for (let i = 0; i < 40 && !(await js(`document.querySelectorAll('.hub-gh .hub-list li').length > 0 || !!document.querySelector('.hub-gh .ag-error')`)); i++) await wait(500);
+      check("merkez (gerçek): robotlar", (await js(`document.querySelectorAll('.hub-robots tbody tr').length`)) >= 5);
+      check("merkez (gerçek): GitHub issue ve CI", await js(`document.querySelectorAll('.hub-gh .hub-list li').length > 0`));
+      check("merkez (gerçek): eşitleme durumu", !/bekleniyor/.test(await js(`document.querySelector('.hub-strip')?.textContent || ''`)), await js(`document.querySelector('.hub-sync')?.textContent || ''`));
+      await shot("hub-1");
+      await js(`document.querySelector('.hub')?.scrollTo(0, 99999)`);
+      await wait(500);
+      await shot("hub-2");
+      log.push(`yakalanmamış hatalar: ${JSON.stringify(await js("window.__errors || []"))}`);
+    } catch (e) {
+      log.push(`SMOKE HATA: ${String(e)}`);
+    }
+    await fs.writeFile(path.join(outDir, "log.txt"), log.join("\n"), "utf8");
     app.quit();
     return;
   }
