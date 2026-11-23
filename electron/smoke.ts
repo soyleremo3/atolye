@@ -214,6 +214,11 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
         /* durum dosyasi yok */
       }
     }
+    // Gun ozeti icin bugunun yonetici satiri (gecici repo)
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
+    writeFileSync(path.join(repo, "raporlar", "gunluk", `${todayStr}.md`), `# Günlük rapor — ${todayStr}\n\n- 09:30 — Test satırı: iki iş bitti.\n`);
     try {
       await wait(2500);
       await key("J", ["control", "alt"]);
@@ -226,6 +231,14 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       check("merkez: varsayılan sekme, robotlar + eşitleme satırı", hub.on && hub.robots === robotsN + 1, `${hub.robots} satır / ${robotsN} robot`);
       check("merkez: raporlar listede (bulut + bu PC)", hub.reports > 0, `${hub.reports} rapor`);
       check("merkez: Claude Code, Codex, Antigravity düğmeleri", /Claude Code/.test(hub.launch) && /Codex/.test(hub.launch) && /Antigravity/.test(hub.launch), hub.launch);
+      const dayTxt = await js(`document.querySelector('.hub-day')?.textContent || ''`);
+      check("gün özeti: bugün, yöneticinin satırı saatiyle", /Gün özeti/.test(dayTxt) && /Bugün/.test(dayTxt) && /Yöneticinin özeti/.test(dayTxt) && /09:30/.test(dayTxt) && /Test satırı: iki iş bitti/.test(dayTxt) && !/09:30 — Test/.test(dayTxt), dayTxt.slice(0, 160));
+      await js(`document.querySelector('.hub-day-nav button[title="Önceki gün"]').click()`);
+      await wait(1500);
+      const prevTxt = await js(`document.querySelector('.hub-day')?.textContent || ''`);
+      check("gün özeti: önceki güne geçer ('Dün')", /Gün özeti\s*Dün/.test(prevTxt) && !/Test satırı/.test(prevTxt), prevTxt.slice(0, 80));
+      await js(`[...document.querySelectorAll('.hub-day-nav button')].find(b => b.textContent.trim() === 'Bugün').click()`);
+      await wait(800);
       await shot("ag-hub");
       await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Ofis')).click()`);
       await wait(1500);
@@ -577,9 +590,13 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
         await wait(2000);
         const nowRows = await js(`[...document.querySelectorAll('.hub-robots tbody tr')].filter(tr => tr.querySelector('.hub-now')).map(tr => tr.querySelector('b').textContent).join('|')`);
         check("köprü: açıkken yalnız çalışmayan Antigravity işlerinde 'Şimdi'", nowRows === "Antigravity medya|Antigravity görev alıcı", nowRows);
+        // gercek repoda sahibin onceki istegi olabilir: "yazilmadi" = dosya degismedi
+        const reqFile = path.join(process.env.ATOLYE_AGENTS || "", ".atolye", "agy-now.json");
+        const before = existsSync(reqFile) ? readFileSync(reqFile, "utf8") : "";
         await js(`[...document.querySelectorAll('.hub-robots .hub-now')][0].click()`);
         await wait(500);
-        check("köprü: 'Şimdi' önce onay sorar (istek yazılmaz)", await js(`!!document.querySelector('.hub-now-ask')`) && !existsSync(path.join(process.env.ATOLYE_AGENTS || "", ".atolye", "agy-now.json")));
+        const after = existsSync(reqFile) ? readFileSync(reqFile, "utf8") : "";
+        check("köprü: 'Şimdi' önce onay sorar (istek yazılmaz)", await js(`!!document.querySelector('.hub-now-ask')`) && before === after);
         await js(`[...document.querySelectorAll('.hub-now-ask button')].find(b => b.textContent.includes('Hayır')).click()`);
       }
       await shot("hub-1");
