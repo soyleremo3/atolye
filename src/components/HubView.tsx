@@ -59,12 +59,15 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
   // ekran acikken saatler ve "x dk once" yazilari tazelensin
   useEffect(() => {
     if (!active) return;
-    const t = window.setInterval(() => void load(), 60_000);
+    const busy = robots.some((r) => r.live?.state === "running");
+    const t = window.setInterval(() => void load(), busy ? 15_000 : 60_000);
     return () => window.clearInterval(t);
-  }, [active, load]);
+  }, [active, load, robots]);
 
   const run = (p: Promise<unknown>) => void p.catch((e) => toast(errText(e), "error"));
-  const working = snap.roles.filter((r) => r.live?.state === "working");
+  // ajan sayisi: Claude rolleri + calisan Antigravity otomasyonlari (rol eslemesi cift sayilmasin)
+  const agyRunning = robots.filter((r) => r.live?.state === "running");
+  const working = [...snap.roles.filter((r) => r.live?.state === "working" && r.live.source !== "antigravity"), ...agyRunning];
   const pending = snap.approvals.pending;
   const ciLast = gh?.ci[0];
   const ciBad = !!ciLast && ciLast.status === "completed" && ciLast.conclusion !== "success";
@@ -101,8 +104,13 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
             </thead>
             <tbody>
               {robots.map((r) => (
-                <tr key={r.id} title={`${r.what}\nModel: ${r.model}`}>
-                  <td><i className="hub-dot on" /> <b>{r.ad}</b><div className="muted small">{r.what}</div></td>
+                <tr key={r.id} className={r.live?.state === "running" ? "hub-running" : undefined} title={`${r.what}\nModel: ${r.model}${r.live?.model ? `\nSon çalışmada kullanılan model: ${r.live.model}` : ""}`}>
+                  <td>
+                    <i className={`hub-dot ${r.live?.state === "running" ? "live" : r.live?.state === "failed" ? "bad" : "on"}`} /> <b>{r.ad}</b>
+                    {r.live?.state === "running" && <span className="hub-tag live">Şu an çalışıyor · {r.live.note}</span>}
+                    {r.live?.state === "failed" && <span className="hub-tag bad" title={`Başladı: ${when(r.live.started)}`}>Son çalışma: {r.live.note}</span>}
+                    <div className="muted small">{r.what}</div>
+                  </td>
                   <td>{r.where === "cloud" ? <span className="hub-tag cloud"><Cloud size={12} /> Bulut</span> : <span className="hub-tag pc"><Laptop size={12} /> Bu PC</span>}</td>
                   <td>{when(r.next)}</td>
                   <td className="muted">{when(r.last)}</td>

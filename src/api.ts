@@ -1,6 +1,6 @@
 export type FileEntry = { path: string; name: string; ext: string; dir: boolean; mtime: number; size: number };
 export type ViewMode = "edit" | "split" | "read" | "board";
-export type AgentLive = { role: string; number: string; model: string; state: "idle" | "working" | "done" | "failed" | "blocked"; lastRun: string | null; did: string; next: string; blockedOn: string };
+export type AgentLive = { role: string; number: string; model: string; state: "idle" | "working" | "done" | "failed" | "blocked"; lastRun: string | null; did: string; next: string; blockedOn: string; source?: "antigravity" };
 export type AgentRole = { id: string; number: string; name: string; ad?: string; zaman?: string; agent?: boolean; model: string; team: string; schedule: string; status: "active" | "planned"; live: AgentLive | null };
 export type AgentItem = { name: string; fm: Record<string, string>; body: string };
 export type AgentsConfig = { repoPath: string; appPath: string };
@@ -17,7 +17,8 @@ export type AgentsSnapshot = {
 export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
 export type RepoSync = { ok: boolean; text: string; at: string };
 export type SyncStatus = { agents: RepoSync; app: RepoSync | null; saved: number; at: string };
-export type RobotView = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; next: string | null; last: string | null };
+export type RobotView = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; next: string | null; last: string | null; live: AgyRun | null };
+export type AgyRun = { sidecar: string; name: string; state: "running" | "done" | "failed"; started: string; updated: string; model: string | null; note: string };
 export type ReportItem = { rel: string; title: string; kind: string; origin: "cloud" | "pc"; pending: boolean; date: string };
 export type GhIssue = { number: number; title: string; labels: string[]; updatedAt: string; url: string; repo: "app" | "agents" };
 export type GhInfo = { ok: boolean; error?: string; issues: GhIssue[]; release: { tag: string; date: string; url: string } | null; ci: { name: string; title: string; status: string; conclusion: string; date: string; url: string }[]; ciNote?: string };

@@ -11,6 +11,7 @@
 import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { listMd, readJson, requireRepo, run, withGitLock, type AgentsConfig } from "./agents";
+import { robotRuns, type AgyRun } from "./antigravity";
 
 // ---------------------------------------------------------------- otomatik esitleme
 /** Antigravity'nin yazdigi ve Atolye'nin onun yerine kaydettigi yollar (baska hicbir dosyaya dokunulmaz). */
@@ -89,7 +90,7 @@ export function autoSync(cfg: AgentsConfig): Promise<SyncStatus> {
 
 // ---------------------------------------------------------------- robotlar
 type Robot = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; last: { commit?: string; file?: string; roles?: string[] } | null };
-export type RobotView = Omit<Robot, "last"> & { next: string | null; last: string | null };
+export type RobotView = Omit<Robot, "last"> & { next: string | null; last: string | null; live: AgyRun | null };
 
 function field(spec: string, min: number, max: number): Set<number> {
   const out = new Set<number>();
@@ -155,7 +156,14 @@ async function lastOf(root: string, last: Robot["last"]): Promise<string | null>
 export async function robots(cfg: AgentsConfig): Promise<RobotView[]> {
   const root = requireRepo(cfg);
   const list = (await readJson<{ robots: Robot[] }>(path.join(root, "schedule.json"), { robots: [] })).robots;
-  return Promise.all(list.map(async (r) => ({ id: r.id, ad: r.ad, where: r.where, cron: r.cron, model: r.model, what: r.what, next: nextRun(r.cron)?.toISOString() ?? null, last: await lastOf(root, r.last) })));
+  const runs = await robotRuns(root).catch(() => ({} as Record<string, AgyRun>));
+  return Promise.all(list.map(async (r) => {
+    const run = runs[r.id] ?? null;
+    let last = await lastOf(root, r.last);
+    // Antigravity'nin kendi kaydi daha yeniyse son calisma odur (rapor dosyasi yazilmasa da)
+    if (run && run.state !== "running" && (!last || run.updated > last)) last = run.updated;
+    return { id: r.id, ad: r.ad, where: r.where, cron: r.cron, model: r.model, what: r.what, next: nextRun(r.cron)?.toISOString() ?? null, last, live: run };
+  }));
 }
 
 // ---------------------------------------------------------------- tum raporlar

@@ -7,6 +7,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
+import { runningRoles } from "./antigravity";
 
 export type AgentsConfig = { repoPath: string; appPath: string };
 
@@ -79,10 +80,13 @@ export function requireRepo(cfg: AgentsConfig): string {
 export async function snapshot(cfg: AgentsConfig) {
   const root = requireRepo(cfg);
   const roster = (await readJson<{ roles: any[] }>(path.join(root, "roster.json"), { roles: [] })).roles;
-  const roles = await Promise.all(roster.map(async (r) => ({
-    ...r,
-    live: await readJson(path.join(root, "roller", r.id, "durum.json"), null),
-  })));
+  const agy = await runningRoles(root).catch(() => ({} as Awaited<ReturnType<typeof runningRoles>>));
+  const roles = await Promise.all(roster.map(async (r) => {
+    const live = await readJson<Record<string, unknown> | null>(path.join(root, "roller", r.id, "durum.json"), null);
+    const run = agy[r.id];
+    // Antigravity su an bu rol icin calisiyorsa ofiste "calisiyor" gorunsun (durum.json is bitince yazilir)
+    return { ...r, live: run ? { ...(live ?? { role: r.id, number: r.number, model: r.model, lastRun: null, next: "", blockedOn: "" }), state: "working", did: `Antigravity çalışıyor (${run.name}, ${run.note})`, source: "antigravity" } : live };
+  }));
   const items = async (dir: string) => Promise.all((await listMd(path.join(root, dir))).map(async (name) => {
     const { fm, body } = frontMatter(await readText(path.join(root, dir, name)));
     return { name, fm, body };
