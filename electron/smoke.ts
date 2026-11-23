@@ -415,6 +415,15 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       check("merkez (gerçek): robotlar", (await js(`document.querySelectorAll('.hub-robots tbody tr').length`)) >= 5);
       check("merkez (gerçek): GitHub issue ve CI", await js(`document.querySelectorAll('.hub-gh .hub-list li').length > 0`));
       check("merkez (gerçek): eşitleme durumu", !/bekleniyor/.test(await js(`document.querySelector('.hub-strip')?.textContent || ''`)), await js(`document.querySelector('.hub-sync')?.textContent || ''`));
+      // sahte Antigravity kaydi (ATOLYE_AGY_HOME): eleştirmen + haberler calisiyor, gorev alici internetsiz kaldi
+      if (process.env.ATOLYE_AGY_HOME && process.env.ATOLYE_AGY_EXPECT) {
+        await wait(1500);
+        const agy = await js(`(async () => { const s = await window.atolye.agents.snapshot(); return { live: [...document.querySelectorAll('.hub-robots .hub-tag.live')].map(e => e.closest('tr').querySelector('b').textContent).join('|'), bad: [...document.querySelectorAll('.hub-robots .hub-tag.bad')].map(e => e.textContent).join('|'), pill: document.querySelector('.hub-strip')?.textContent || '', news: s.roles.find(r => r.id === 'news')?.live?.state }; })()`);
+        check("antigravity: çalışan otomasyonlar Merkez'de", agy.live === process.env.ATOLYE_AGY_EXPECT, agy.live);
+        check("antigravity: internetsiz kalan iş hata olarak", /İnternet/.test(agy.bad), agy.bad);
+        check("antigravity: üst şeritte çalışan ajan sayısı", /2 ajan çalışıyor/.test(agy.pill), agy.pill);
+        check("antigravity: haberler rolü ofiste çalışıyor", agy.news === "working", String(agy.news));
+      }
       await shot("hub-1");
       await js(`document.querySelector('.hub')?.scrollTo(0, 99999)`);
       await wait(500);
