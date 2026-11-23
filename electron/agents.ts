@@ -260,7 +260,15 @@ export function withRtk(rules: string): string {
   return out.join(",");
 }
 
-const ROLE_TOOLS = withRtk("Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(git *),Bash(npm run *),Bash(npm test*),Bash(npx jest*),Bash(node *)");
+/**
+ * Kapi komutlari (test, tur kontrolu, lint). rtk "npx jest" -> "rtk jest", "npx tsc" -> "rtk tsc",
+ * "npx eslint" -> "rtk lint" diye yeniden yazar ve izin vermez (2026-11-23 olculdu; ilk yerel yonetici
+ * calismasinda lint bu yuzden reddedildi). Bu bicimler acikca eklenir.
+ */
+const GATE = "Bash(npm run *),Bash(npm test*),Bash(npx jest*),Bash(npx tsc*),Bash(npx eslint*)";
+const GATE_RTK = "Bash(rtk jest*),Bash(rtk tsc*),Bash(rtk lint*)";
+
+const ROLE_TOOLS = withRtk(`Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(git *),${GATE},Bash(node *)`) + "," + GATE_RTK;
 
 export function startRun(cfg: AgentsConfig, role: string, task: string, send: (e: RunEvent) => void): string {
   const root = requireRepo(cfg);
@@ -272,7 +280,7 @@ export function startRun(cfg: AgentsConfig, role: string, task: string, send: (e
 /** Yerel yonetici en fazla bu kadar is alir (sahip, 2026-11-23). */
 export const LOCAL_MAX_TASKS = 5;
 /** Yonetici: alt ajanlari (auto-worker-opus / auto-worker / auto-scout) calistirir, kapiyi kosar, gonderir. */
-const MANAGER_TOOLS = withRtk("Read,Edit,Write,Glob,Grep,Agent,Task,Bash(cd *),Bash(git *),Bash(gh *),Bash(npm run *),Bash(npm test*),Bash(npx jest*),Bash(npx tsc*),Bash(node *)");
+const MANAGER_TOOLS = withRtk(`Read,Edit,Write,Glob,Grep,Agent,Task,Bash(cd *),Bash(git *),Bash(gh *),${GATE},Bash(node *)`) + "," + GATE_RTK;
 /** Asla: build, paket kurma (sahibin calisma kopyasi), zorla gonderme, geri alinamaz git temizligi. */
 const MANAGER_DENY = withRtk("Bash(npm run build*),Bash(npm ci*),Bash(npm install*),Bash(npm i *),Bash(git push --force*),Bash(git push -f*),Bash(git reset --hard*),Bash(git clean*),Bash(eas *),Bash(npx eas*)");
 
