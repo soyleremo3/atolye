@@ -5,3 +5,4 @@ release/
 release-staging/
 public/fonts/
 *.log
+dist-test/

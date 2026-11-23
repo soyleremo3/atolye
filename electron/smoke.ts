@@ -3,7 +3,7 @@
  * Uygulamayi gercek pencerede gezer, her adimin ekran goruntusunu kaydeder, sonuclari log.txt'ye yazar ve kapanir.
  */
 import { app, clipboard, type BrowserWindow } from "electron";
-import { promises as fs, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, promises as fs, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -91,8 +91,16 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
     process.env.ATOLYE_FIRE_URL = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
     const fake = "sk-ant-oat01-" + "T".repeat(40);
     const toastText = () => js(`[...document.querySelectorAll('.toast')].map(t => t.textContent).join(' | ')`) as Promise<string>;
-    // kopyalanan gercek repoda yonetici o an calisiyor olabilir: test bos durumdan baslasin
-    writeFileSync(path.join(process.env.ATOLYE_AGENTS || "", "roller", "manager", "durum.json"), JSON.stringify({ role: "manager", number: "11", model: "claude-opus", state: "done", lastRun: "2026-11-01T00:00:00+03:00", did: "", next: "", blockedOn: "" }));
+    // kopyalanan gercek repoda o an calisan (ya da yarida kalmis) ajanlar olabilir: test sakin ofisten baslasin
+    for (const id of readdirSync(path.join(process.env.ATOLYE_AGENTS || "", "roller"))) {
+      const f = path.join(process.env.ATOLYE_AGENTS || "", "roller", id, "durum.json");
+      try {
+        const j = JSON.parse(readFileSync(f, "utf8"));
+        if (j.state === "working") writeFileSync(f, JSON.stringify({ ...j, state: "done" }, null, 2));
+      } catch {
+        /* durum dosyasi yok */
+      }
+    }
     try {
       await wait(2500);
       await key("J", ["control", "alt"]);
@@ -136,7 +144,7 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       const argAfter = (flag: string) => got.args[got.args.indexOf(flag) + 1] ?? "";
       check("yerel: Opus, alt ajanlar (Agent) ve kapı komutları izinli", argAfter("--model") === "opus" && /\bAgent\b/.test(argAfter("--allowedTools")) && /Bash\(npm run \*\)/.test(argAfter("--allowedTools")) && argAfter("--permission-mode") === "acceptEdits", got.args.join(" ").slice(0, 200));
       check("yerel: build, npm ci/install, zorla gönderme yasak", ["npm run build", "npm ci", "npm install", "git push --force", "git reset --hard"].every((x) => argAfter("--disallowedTools").includes(x)), argAfter("--disallowedTools"));
-      check("yerel: rtk kancası kuralları bozmaz (rtk biçimleri de var)", argAfter("--allowedTools").split(",").includes("Bash(rtk gh *)") && argAfter("--disallowedTools").split(",").includes("Bash(rtk npm ci*)") && !argAfter("--allowedTools").includes("Bash(rtk cd"), "");
+      check("yerel: rtk kancası kuralları bozmaz (rtk biçimleri de var)", argAfter("--allowedTools").split(",").includes("Bash(rtk gh *)") && ["Bash(rtk lint*)", "Bash(rtk jest*)", "Bash(rtk tsc*)", "Bash(npx eslint*)"].every((x) => argAfter("--allowedTools").split(",").includes(x)) && argAfter("--disallowedTools").split(",").includes("Bash(rtk npm ci*)") && !argAfter("--allowedTools").includes("Bash(rtk cd"), "");
       check("yerel: istem 'LOCAL OWNER RUN', en fazla 5 iş, agy çağırmaz", /LOCAL OWNER RUN/.test(got.prompt) && /up to 5 tasks/.test(got.prompt) && /never call agy yourself/.test(got.prompt), got.prompt.slice(0, 120));
       check("yerel: ajan reposunda çalışır", path.resolve(got.cwd) === path.resolve(process.env.ATOLYE_AGENTS || ""), got.cwd);
       await waitFor(() => false, 3500);
@@ -548,11 +556,31 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       // sahte Antigravity kaydi (ATOLYE_AGY_HOME): eleştirmen + haberler calisiyor, gorev alici internetsiz kaldi
       if (process.env.ATOLYE_AGY_HOME && process.env.ATOLYE_AGY_EXPECT) {
         await wait(1500);
-        const agy = await js(`(async () => { const s = await window.atolye.agents.snapshot(); return { live: [...document.querySelectorAll('.hub-robots .hub-tag.live')].map(e => e.closest('tr').querySelector('b').textContent).join('|'), bad: [...document.querySelectorAll('.hub-robots .hub-tag.bad')].map(e => e.textContent).join('|'), pill: document.querySelector('.hub-strip')?.textContent || '', news: s.roles.find(r => r.id === 'news')?.live?.state }; })()`);
+        const agy = await js(`(async () => { const s = await window.atolye.agents.snapshot(); return { live: [...document.querySelectorAll('.hub-robots .hub-tag.live')].map(e => e.closest('tr').querySelector('b').textContent).filter(t => t.startsWith('Antigravity')).join('|'), bad: [...document.querySelectorAll('.hub-robots .hub-tag.bad')].map(e => e.textContent).join('|'), pill: document.querySelector('.hub-strip')?.textContent || '', news: s.roles.find(r => r.id === 'news')?.live?.state }; })()`);
         check("antigravity: çalışan otomasyonlar Merkez'de", agy.live === process.env.ATOLYE_AGY_EXPECT, agy.live);
         check("antigravity: internetsiz kalan iş hata olarak", /İnternet/.test(agy.bad), agy.bad);
-        check("antigravity: üst şeritte çalışan ajan sayısı", /2 ajan çalışıyor/.test(agy.pill), agy.pill);
+        // gercek repoda Claude ajanlari da o an calisiyor olabilir: en az 2 (eleştirmen + haberler)
+        check("antigravity: üst şeritte çalışan ajan sayısı", Number(/(\d+) ajan çalışıyor/.exec(agy.pill)?.[1] ?? 0) >= 2, agy.pill);
         check("antigravity: haberler rolü ofiste çalışıyor", agy.news === "working", String(agy.news));
+        // köprü: kurulu değil -> Kur -> Antigravity'de açılmayı bekler -> açık: çalışmayan işlerde "Şimdi" düğmesi
+        const bridgeText = () => js(`document.querySelector('.hub-bridge')?.textContent || ''`) as Promise<string>;
+        check("köprü: başta 'kurulu değil' + Köprüyü kur", /kurulu değil/.test(await bridgeText()), await bridgeText());
+        await js(`[...document.querySelectorAll('.hub-bridge button')].find(b => b.textContent.includes('Köprüyü kur')).click()`);
+        await wait(1200);
+        const sc = JSON.parse(readFileSync(path.join(process.env.ATOLYE_AGY_HOME!, "config", "sidecars", "atolye-now", "sidecar.json"), "utf8"));
+        check("köprü: kurulunca Antigravity'de açılmayı bekler (kendisi açmaz)", /açılmayı bekliyor/.test(await bridgeText()) && sc.builtin === "schedule", (await bridgeText()).slice(0, 120));
+        const cfgFile = path.join(process.env.ATOLYE_AGY_HOME!, "config", "config.json");
+        writeFileSync(cfgFile, JSON.stringify({ sidecars: { "atolye-now": { enabled: true } } }));
+        await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Pano')).click()`);
+        await wait(600);
+        await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Merkez')).click()`);
+        await wait(2000);
+        const nowRows = await js(`[...document.querySelectorAll('.hub-robots tbody tr')].filter(tr => tr.querySelector('.hub-now')).map(tr => tr.querySelector('b').textContent).join('|')`);
+        check("köprü: açıkken yalnız çalışmayan Antigravity işlerinde 'Şimdi'", nowRows === "Antigravity medya|Antigravity görev alıcı", nowRows);
+        await js(`[...document.querySelectorAll('.hub-robots .hub-now')][0].click()`);
+        await wait(500);
+        check("köprü: 'Şimdi' önce onay sorar (istek yazılmaz)", await js(`!!document.querySelector('.hub-now-ask')`) && !existsSync(path.join(process.env.ATOLYE_AGENTS || "", ".atolye", "agy-now.json")));
+        await js(`[...document.querySelectorAll('.hub-now-ask button')].find(b => b.textContent.includes('Hayır')).click()`);
       }
       await shot("hub-1");
       await js(`document.querySelector('.hub')?.scrollTo(0, 99999)`);
