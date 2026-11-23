@@ -17,6 +17,8 @@ export type AgentsSnapshot = {
 export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
 export type RepoSync = { ok: boolean; text: string; at: string };
 export type SyncStatus = { agents: RepoSync; app: RepoSync | null; saved: number; at: string };
+export type DayItem = { text: string; at: string; rel?: string; tag?: string };
+export type DaySummary = { day: string; manager: DayItem[]; app: DayItem[]; agents: DayItem[]; results: DayItem[]; approvals: DayItem[]; social: DayItem[]; socialError?: string; empty: boolean };
 export type BridgeStatus = {
   installed: boolean;
   enabled: boolean;
@@ -151,6 +153,7 @@ type AtolyeApi = {
     issue(repo: "app" | "agents", n: number): Promise<string>;
     openApp(which: "antigravity" | "claudeUsage" | "claudeRoutines" | "github"): Promise<boolean>;
     openUrl(url: string): Promise<boolean>;
+    day(day: string): Promise<DaySummary>;
     bridgeStatus(): Promise<BridgeStatus>;
     bridgeInstall(): Promise<BridgeStatus>;
     agyNow(which: string): Promise<BridgeStatus>;

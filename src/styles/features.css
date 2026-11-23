@@ -158,3 +158,17 @@
 .hub-now { margin-left: 8px; padding: 1px 8px; font-size: 11.5px; }
 .hub-now-ask { display: inline-flex; gap: 4px; align-items: center; margin-left: 6px; font-size: 12px; }
 .hub-bridge { margin-top: 6px; line-height: 1.6; }
+
+/* Merkez → Gun ozeti */
+.hub-day { margin-bottom: 14px; }
+.hub-day-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.hub-day-head h3 { margin: 0; }
+.hub-day-nav { display: flex; align-items: center; gap: 6px; }
+.hub-day-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 4px 18px; margin-top: 8px; }
+.hub-day-sec h4 { margin: 10px 0 6px; }
+.hub-day-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hub-day-list li { display: flex; align-items: baseline; gap: 6px; line-height: 1.45; font-size: 13px; }
+.hub-day-time { flex: none; width: 38px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.hub-day-list .hub-tag { flex: none; }
+.hub-day-text { min-width: 0; text-align: left; overflow-wrap: anywhere; }
+.hub-day-text.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

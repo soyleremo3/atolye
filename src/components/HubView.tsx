@@ -10,6 +10,7 @@ import {
 import { api, type AgentsSnapshot, type BridgeStatus, type GhInfo, type ReportItem, type RobotView, type SyncStatus } from "../api";
 import { requestTerminal } from "../lib/terminalState";
 import { ManagerCard } from "./ManagerCard";
+import { DayCard } from "./DayCard";
 import { toast, updateSettings, useStore } from "../store";
 
 const when = (iso: string | null) => {
@@ -115,6 +116,8 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
       </section>
 
       <ManagerCard active={active} onAfterRun={() => void load()} onWatch={() => onTab("runs")} />
+
+      <DayCard active={active} onOpen={onOpen} />
 
       <div className="hub-grid">
         {/* --- robotlar */}

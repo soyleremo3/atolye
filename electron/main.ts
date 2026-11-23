@@ -17,6 +17,7 @@ import * as assistant from "./assistant";
 import * as hub from "./hub";
 import * as manager from "./manager";
 import * as agyBridge from "./agyBridge";
+import * as daily from "./daily";
 
 /** Windows acilisinda baslatildiysa pencere simge durumunda acilir (arka planda esitleme yapar). */
 const STARTUP = process.argv.includes("--atolye-startup");
@@ -538,6 +539,8 @@ function registerIpc(): void {
     await background(); // once bu PC'deki Antigravity sonuclari gitsin, bulut insin
     return agents.startManager(cfg, (e) => win?.webContents.send("agents:event", e));
   });
+  // Gun ozeti: secilen gunde ne yapildi (gercek kayitlardan)
+  handle("hub:day", (day: string) => daily.daySummary(agentsCfg(), String(day ?? "")));
   // Antigravity "simdi calistir": Atolye yalniz istek dosyasi yazar; isi Antigravity'nin kendi zamanlayicisi baslatir.
   handle("hub:bridgeStatus", () => agyBridge.bridgeStatus(agents.requireRepo(agentsCfg())));
   handle("hub:bridgeInstall", async () => {
