@@ -99,6 +99,7 @@ contextBridge.exposeInMainWorld("atolye", {
     saveToken: (token: string) => invoke("manager:saveToken", token),
     clearToken: () => invoke("manager:clearToken"),
     run: () => invoke("manager:run"),
+    runLocal: () => invoke("manager:runLocal"),
   },
   assistant: {
     ask: (question: string, scope: string, model: string) => invoke("assistant:ask", question, scope, model),

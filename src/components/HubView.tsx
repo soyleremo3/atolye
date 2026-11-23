@@ -33,7 +33,7 @@ type Props = {
   active: boolean;
   onOpen: (title: string, rel: string) => void;
   onDoc: (title: string, text: string) => void;
-  onTab: (tab: "approvals" | "reports" | "office" | "board") => void;
+  onTab: (tab: "approvals" | "reports" | "office" | "board" | "runs") => void;
   syncing: boolean;
   onSync: () => void;
 };
@@ -68,7 +68,10 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
   const run = (p: Promise<unknown>) => void p.catch((e) => toast(errText(e), "error"));
   // ajan sayisi: Claude rolleri + calisan Antigravity otomasyonlari (rol eslemesi cift sayilmasin)
   const agyRunning = robots.filter((r) => r.where === "pc" && r.live?.state === "running");
-  const working = [...snap.roles.filter((r) => r.live?.state === "working" && r.live.source !== "antigravity"), ...agyRunning];
+  const claudeWorking = snap.roles.filter((r) => r.live?.state === "working" && r.live.source !== "antigravity");
+  // yonetici calisiyor ama durum dosyasini henuz yazmadiysa da say
+  const mgrOnly = robots.some((r) => r.id === "manager" && r.live?.state === "running") && !claudeWorking.some((r) => r.id === "manager") ? 1 : 0;
+  const working = { length: claudeWorking.length + agyRunning.length + mgrOnly };
   const pending = snap.approvals.pending;
   const ciLast = gh?.ci[0];
   const ciBad = !!ciLast && ciLast.status === "completed" && ciLast.conclusion !== "success";
@@ -95,7 +98,7 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
         </button>
       </section>
 
-      <ManagerCard active={active} onAfterRun={() => void load()} />
+      <ManagerCard active={active} onAfterRun={() => void load()} onWatch={() => onTab("runs")} />
 
       <div className="hub-grid">
         {/* --- robotlar */}

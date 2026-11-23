@@ -152,6 +152,7 @@ type AtolyeApi = {
     saveToken(token: string): Promise<void>;
     clearToken(): Promise<void>;
     run(): Promise<ManagerFire>;
+    runLocal(): Promise<string>;
   };
   assistant: {
     ask(question: string, scope: "notes" | "vault", model: "haiku" | "sonnet" | "opus"): Promise<string>;

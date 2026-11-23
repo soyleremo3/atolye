@@ -490,6 +490,8 @@ function registerIpc(): void {
   const backgroundOk = !process.env.ATOLYE_SMOKE || !!process.env.ATOLYE_AGENTS;
   const background = async () => {
     if (!backgroundOk) return;
+    // Bu PC'de ajan/yonetici calisirken git'e dokunulmaz (yarim isini "Antigravity sonucu" diye kaydetmeyelim)
+    if (agents.isRunning()) return;
     try {
       win?.webContents.send("hub:synced", await hub.autoSync(agentsCfg()));
     } catch {
@@ -523,7 +525,18 @@ function registerIpc(): void {
   handle("manager:status", () => manager.status(agentsCfg()));
   handle("manager:saveToken", (token: string) => manager.saveToken(String(token ?? "")));
   handle("manager:clearToken", () => manager.clearToken());
-  handle("manager:run", () => manager.fire(agentsCfg(), () => background()));
+  handle("manager:run", () => {
+    if (agents.isRunning("manager")) throw new Error("Yönetici şu an bu PC'de çalışıyor; bulutta ikinci bir yönetici başlatılmadı.");
+    return manager.fire(agentsCfg(), () => background());
+  });
+  // Asil tus: yonetici bu PC'de (claude -p, Opus) calisir; Claude ajanlarini burada sirayla calistirir.
+  handle("manager:runLocal", async () => {
+    const cfg = agentsCfg();
+    const st = await manager.status(cfg);
+    if (st.phase === "running" || st.phase === "starting") throw new Error("Yönetici şu an bulutta çalışıyor; bitince yeniden başlatabilirsin.");
+    await background(); // once bu PC'deki Antigravity sonuclari gitsin, bulut insin
+    return agents.startManager(cfg, (e) => win?.webContents.send("agents:event", e));
+  });
   handle("hub:openUrl", (url: string) => {
     if (!/^https:\/\/(github\.com\/soyleremo3\/|claude\.ai\/code\/[A-Za-z0-9_-]+$)/.test(String(url))) throw new Error("Yalnız GitHub ve Claude oturum bağlantıları");
     openExternalSafe(String(url));

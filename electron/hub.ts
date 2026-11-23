@@ -10,7 +10,7 @@
  */
 import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
-import { listMd, readJson, requireRepo, run, withGitLock, type AgentsConfig } from "./agents";
+import { isRunning, listMd, readJson, requireRepo, run, withGitLock, type AgentsConfig } from "./agents";
 import { robotRuns, type AgyRun } from "./antigravity";
 
 // ---------------------------------------------------------------- otomatik esitleme
@@ -161,7 +161,10 @@ export async function robots(cfg: AgentsConfig): Promise<RobotView[]> {
   const mgrFile = path.join(root, "roller", "manager", "durum.json");
   const mgr = await readJson<{ state?: string; did?: string } | null>(mgrFile, null);
   const mgrAt = (await fs.stat(mgrFile).catch(() => null))?.mtimeMs ?? 0;
-  if (mgr?.state === "working" && Date.now() - mgrAt < 3 * 60 * 60_000) {
+  if (isRunning("manager")) {
+    const at = new Date().toISOString();
+    runs.manager = { sidecar: "", name: "Claude yönetici", state: "running", started: at, updated: at, model: "opus", note: "bu PC'de, işleri dağıtıyor" };
+  } else if (mgr?.state === "working" && Date.now() - mgrAt < 3 * 60 * 60_000) {
     const at = new Date(mgrAt).toISOString();
     runs.manager = { sidecar: "", name: "Claude yönetici", state: "running", started: at, updated: at, model: null, note: mgr.did || "işleri dağıtıyor" };
   }

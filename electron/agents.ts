@@ -205,6 +205,11 @@ export function listRuns(): RunInfo[] {
   return runs.slice(-10).reverse().map((r) => ({ ...r, events: r.events.slice(-200) }));
 }
 
+/** Bir ajan (ya da yerel yonetici) su an bu PC'de calisiyor mu; calisirken otomatik esitleme bekler. */
+export function isRunning(role?: string): boolean {
+  return !!current && (!role || current.info.role === role);
+}
+
 export function stopRun(): boolean {
   if (!current) return false;
   current.child.kill();
@@ -241,10 +246,60 @@ export function modelFor(root: string, role: string): string | null {
   }
 }
 
+/**
+ * Bu PC'de "rtk" kancasi (kullanici ayari) bazi komutlarin basina "rtk " ekler (git, gh, npm...);
+ * kural eslesmesi bozulmasin diye her Bash kuralinin "rtk " bicimi de eklenir (izin ve yasak icin ayni).
+ */
+export function withRtk(rules: string): string {
+  const out: string[] = [];
+  for (const r of rules.split(",")) {
+    out.push(r);
+    const m = /^Bash\((.+)\)$/.exec(r);
+    if (m && !m[1].startsWith("cd ")) out.push(`Bash(rtk ${m[1]})`);
+  }
+  return out.join(",");
+}
+
+const ROLE_TOOLS = withRtk("Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(git *),Bash(npm run *),Bash(npm test*),Bash(npx jest*),Bash(node *)");
+
 export function startRun(cfg: AgentsConfig, role: string, task: string, send: (e: RunEvent) => void): string {
   const root = requireRepo(cfg);
   if (!ROLE.test(role) || !existsSync(path.join(root, "roller", role, "rol.md"))) throw new Error("Bilinmeyen rol");
-  if (current) throw new Error("Şu an başka bir ajan çalışıyor; işler sırayla yapılır.");
+  return launch(cfg, role, promptFor(role, task, cfg), { model: modelFor(root, role), allowed: ROLE_TOOLS }, send);
+}
+
+// ------------------------------------------------------------------ yerel yonetici (sahip tusu)
+/** Yerel yonetici en fazla bu kadar is alir (sahip, 2026-11-23). */
+export const LOCAL_MAX_TASKS = 5;
+/** Yonetici: alt ajanlari (auto-worker-opus / auto-worker / auto-scout) calistirir, kapiyi kosar, gonderir. */
+const MANAGER_TOOLS = withRtk("Read,Edit,Write,Glob,Grep,Agent,Task,Bash(cd *),Bash(git *),Bash(gh *),Bash(npm run *),Bash(npm test*),Bash(npx jest*),Bash(npx tsc*),Bash(node *)");
+/** Asla: build, paket kurma (sahibin calisma kopyasi), zorla gonderme, geri alinamaz git temizligi. */
+const MANAGER_DENY = withRtk("Bash(npm run build*),Bash(npm ci*),Bash(npm install*),Bash(npm i *),Bash(git push --force*),Bash(git push -f*),Bash(git reset --hard*),Bash(git clean*),Bash(eas *),Bash(npx eas*)");
+
+export function managerPrompt(cfg: AgentsConfig): string {
+  return [
+    "You are the manager (roles 11 + 23) of the Basketball APP agent system, started by the owner with the Atölye button on the owner's PC: a LOCAL OWNER RUN. Nobody answers questions during the run; decide by the rules.",
+    `Agent repo (your working directory): ${cfg.repoPath}. App repo (the owner's working copy): ${cfg.appPath || "(not set: agent-repo work only)"}.`,
+    "0. If roller/manager/durum.json says \"working\" and its last commit is under 3 hours old, another manager run is active: stop at once without changing anything.",
+    "1. Run git pull --rebase in both repos. Read ANAYASA.md, playbooks/manager.md, roller/manager/rol.md, roller/manager/defter.md and state.md; in the app repo read CLAUDE.md and RULES.md. Follow playbooks/manager.md as an owner run: skip the idle check and pick up to " + LOCAL_MAX_TASKS + " tasks, one after another. Set your durum.json to working and push at once.",
+    "2. Local rules: the app repo is the owner's working copy. Never run npm ci or npm install, never switch branches, never touch files the owner changed but did not commit (check git status first). Gate = npm run typecheck, npm run lint and npm test in the app repo. Push your commits to main (agents) and master (app).",
+    "3. You manage, you do not build: delegate code to the auto-worker-opus (Shoot engine, coach), auto-worker (Sonnet) and auto-scout (Haiku) subagents, one at a time, with a tight brief. Google/research work goes to Antigravity as a for: agy ticket in board/inbox (Antigravity runs it on this PC by its own automation; never call agy yourself). Important actions (builds, emails, posts, dependencies, deletions, money, rule files) are never done: file an approval request in approvals/pending/.",
+    "4. Commits: named files only, short English 'type(scope): summary', NO AI attribution of any kind. Zero spending (a usage-limit sign means stop). Never print, log or commit a token or secret; never invent facts; never touch other repos, version5 or version2.",
+    "5. Always end by updating state.md, roller/manager/durum.json and raporlar/gunluk/<date>.md (say 'local owner run'), pushing both repos, then a short Turkish summary for the owner (max 6 lines): which task went to which agent, what finished, what waits for Antigravity or for the owner.",
+  ].join("\n");
+}
+
+export function startManager(cfg: AgentsConfig, send: (e: RunEvent) => void): string {
+  const root = requireRepo(cfg);
+  if (!existsSync(path.join(root, "roller", "manager", "rol.md"))) throw new Error("Yönetici rolü bulunamadı");
+  return launch(cfg, "manager", managerPrompt(cfg), { model: "opus", allowed: MANAGER_TOOLS, deny: MANAGER_DENY }, send);
+}
+
+type LaunchOpts = { model: string | null; allowed: string; deny?: string };
+
+function launch(cfg: AgentsConfig, role: string, prompt: string, opts: LaunchOpts, send: (e: RunEvent) => void): string {
+  const root = requireRepo(cfg);
+  if (current) throw new Error(current.info.role === "manager" ? "Yönetici şu an bu PC'de çalışıyor; bitince yeniden başlatabilirsin." : "Şu an başka bir ajan çalışıyor; işler sırayla yapılır.");
   const id = `r${Date.now().toString(36)}`;
   const info: RunInfo = { id, role, started: Date.now(), events: [] };
   runs.push(info);
@@ -253,13 +308,14 @@ export function startRun(cfg: AgentsConfig, role: string, task: string, send: (e
     info.events.push(e);
     send(e);
   };
-  const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
-    "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash(git *),Bash(npm run *),Bash(npm test*),Bash(npx jest*),Bash(node *)"];
-  const model = modelFor(root, role);
-  if (model) args.push("--model", model);
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", "--allowedTools", opts.allowed];
+  if (opts.deny) args.push("--disallowedTools", opts.deny);
+  if (opts.model) args.push("--model", opts.model);
   if (cfg.appPath && existsSync(cfg.appPath)) args.push("--add-dir", cfg.appPath);
   // Kabuk kullanilmaz (argumanlar oldugu gibi gider); istem stdin'den verilir.
-  const child = spawn(claudeBinary(), args, { cwd: root, windowsHide: true });
+  // Testte sahte "claude" (ATOLYE_FAKE_CLAUDE=<node betigi>); gercek kotaya dokunmaz
+  const fake = process.env.ATOLYE_SMOKE && process.env.ATOLYE_FAKE_CLAUDE;
+  const child = fake ? spawn(process.env.ATOLYE_FAKE_NODE || "node", [fake, ...args], { cwd: root, windowsHide: true }) : spawn(claudeBinary(), args, { cwd: root, windowsHide: true });
   current = { info, child };
   emit("start", `${role} başladı`);
   let buf = "";
@@ -286,7 +342,7 @@ export function startRun(cfg: AgentsConfig, role: string, task: string, send: (e
     }
   });
   child.stderr.on("data", (d: Buffer) => emit("text", d.toString()));
-  child.stdin.end(promptFor(role, task, cfg));
+  child.stdin.end(prompt);
   child.on("error", (e) => emit("text", `Başlatılamadı: ${e.message} (Claude Code kurulu mu?)`));
   child.on("close", (code) => {
     info.ended = Date.now();
