@@ -95,13 +95,59 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       await wait(2500);
       await key("J", ["control", "alt"]);
       await wait(2500);
-      check("yönetici: kart Merkez'de, anahtar yokken 'Tuşu kur'", await js(`!!document.querySelector('.hub-manager') && /Tuşu kur/.test(document.querySelector('.hub-manager').textContent)`));
-      // kısayol başka sekmedeyken: Merkez'e geçer ve onay kutusu açılır
+      check("yönetici: kart Merkez'de (yerel tuş + bulut seçeneği)", await js(`(() => { const c = document.querySelector('.hub-manager'); return !!c && /Yöneticiyi çalıştır/.test(c.textContent) && /Bulutta çalıştır/.test(c.textContent); })()`));
+
+      // ---- YEREL (asıl tuş): sahte claude, gerçek kotaya dokunmaz
+      const fakeOut = path.join(outDir, "fake-claude.json");
+      const fakeJs = path.join(outDir, "fake-claude.cjs");
+      writeFileSync(fakeJs, [
+        "let input = '';",
+        "process.stdin.on('data', (d) => (input += d));",
+        "process.stdin.on('end', () => {",
+        `  require('fs').writeFileSync(${JSON.stringify(fakeOut)}, JSON.stringify({ args: process.argv.slice(2), prompt: input, cwd: process.cwd() }));`,
+        "  console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'ANAYASA.md' } }] } }));",
+        "  console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Agent', input: { pattern: 'auto-worker' } }] } }));",
+        "  setTimeout(() => { console.log(JSON.stringify({ type: 'result', result: '5 iş seçildi: 3 Claude, 2 Antigravity.' })); process.exit(0); }, 4000);",
+        "});",
+      ].join("\n"));
+      process.env.ATOLYE_FAKE_CLAUDE = fakeJs;
+      // kısayol başka sekmedeyken: Merkez'e geçer ve yerel onay kutusu açılır (anahtar gerekmez)
       await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Pano')).click()`);
       await wait(800);
       await key("G", ["control", "alt"]);
       await wait(1500);
-      check("yönetici: Ctrl+Alt+G Merkez'i ve onay kutusunu açar (anahtar yok uyarısı)", await js(`!!document.querySelector('.hub-manager-confirm') && /Önce tuşu kur/.test(document.querySelector('.hub-manager-confirm').textContent)`));
+      check("yerel: Ctrl+Alt+G Merkez'i ve 'bu bilgisayarda' onayını açar", await js(`!!document.querySelector('.hub-manager-confirm') && /bu bilgisayarda başlasın/.test(document.querySelector('.hub-manager-confirm').textContent)`));
+      await js(`[...document.querySelectorAll('.hub-manager-confirm button')].find(b => b.textContent.includes('Başlat')).click()`);
+      await wait(1800);
+      const lr = await js(`document.querySelector('.hub-manager')?.textContent || ''`);
+      check("yerel: kart 'Bu PC'de çalışıyor' + adımlar", /Bu PC'de çalışıyor/.test(lr) && /Yönetici çalışıyor/.test(lr), lr.slice(0, 180));
+      const pill = await js(`document.querySelector('.hub-strip')?.textContent || ''`);
+      const mgrLive = await js(`window.atolye.hub.robots().then(r => r.find(x => x.id === 'manager')?.live?.note || '')`);
+      check("yerel: üst şeritte '1 ajan çalışıyor', Robotlar'da yönetici bu PC'de", /1 ajan çalışıyor/.test(pill) && /bu PC'de/.test(mgrLive), `${pill.slice(0, 90)} | ${mgrLive}`);
+      await shot("manager-local-running");
+      const twice = await js(`window.atolye.manager.runLocal().then(() => 'başladı', e => String(e.message))`);
+      check("yerel: çalışırken ikinci yönetici başlamaz", /bu PC'de çalışıyor/.test(twice), twice);
+      const cloudBlocked = await js(`window.atolye.manager.run().then(() => 'başladı', e => String(e.message))`);
+      check("yerel: çalışırken bulutta da başlatılmaz", /bu PC'de çalışıyor/.test(cloudBlocked) && hits.length === 0, cloudBlocked);
+      await waitFor(() => { try { readFileSync(fakeOut); return true; } catch { return false; } }, 5000);
+      const got = (() => { try { return JSON.parse(readFileSync(fakeOut, "utf8")); } catch { return { args: [], prompt: "", cwd: "" }; } })() as { args: string[]; prompt: string; cwd: string };
+      const argAfter = (flag: string) => got.args[got.args.indexOf(flag) + 1] ?? "";
+      check("yerel: Opus, alt ajanlar (Agent) ve kapı komutları izinli", argAfter("--model") === "opus" && /\bAgent\b/.test(argAfter("--allowedTools")) && /Bash\(npm run \*\)/.test(argAfter("--allowedTools")) && argAfter("--permission-mode") === "acceptEdits", got.args.join(" ").slice(0, 200));
+      check("yerel: build, npm ci/install, zorla gönderme yasak", ["npm run build", "npm ci", "npm install", "git push --force", "git reset --hard"].every((x) => argAfter("--disallowedTools").includes(x)), argAfter("--disallowedTools"));
+      check("yerel: rtk kancası kuralları bozmaz (rtk biçimleri de var)", argAfter("--allowedTools").split(",").includes("Bash(rtk gh *)") && argAfter("--disallowedTools").split(",").includes("Bash(rtk npm ci*)") && !argAfter("--allowedTools").includes("Bash(rtk cd"), "");
+      check("yerel: istem 'LOCAL OWNER RUN', en fazla 5 iş, agy çağırmaz", /LOCAL OWNER RUN/.test(got.prompt) && /up to 5 tasks/.test(got.prompt) && /never call agy yourself/.test(got.prompt), got.prompt.slice(0, 120));
+      check("yerel: ajan reposunda çalışır", path.resolve(got.cwd) === path.resolve(process.env.ATOLYE_AGENTS || ""), got.cwd);
+      await waitFor(() => false, 3500);
+      await wait(800);
+      const done = await js(`document.querySelector('.hub-manager')?.textContent || ''`);
+      check("yerel: bitince özet kartta", /Son yerel çalışma bitti/.test(done) && /5 iş seçildi/.test(done), done.slice(0, 200));
+      await js(`[...document.querySelectorAll('.hub-manager button')].find(b => b.textContent.includes('Ne yaptı'))?.click()`);
+      await wait(1200);
+      check("yerel: 'Ne yaptı?' Çalıştır sekmesini açar", await js(`!!document.querySelector('.ag-tab.on') && document.querySelector('.ag-tab.on').textContent.includes('Çalıştır')`));
+      await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.includes('Merkez')).click()`);
+      await wait(1000);
+
+      // ---- BULUT (ikinci seçenek)
       const bad = await js(`window.atolye.manager.saveToken('merhaba').then(() => 'kaydedildi', e => String(e.message))`);
       check("yönetici: yanlış anahtar reddedilir", /rutin anahtarı değil/.test(bad), bad);
       await js(`window.atolye.manager.saveToken(${JSON.stringify(fake)})`);
@@ -109,10 +155,9 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
       const tokenFile = readFileSync(path.join(app.getPath("userData"), "manager-token.bin"));
       check("yönetici: anahtar şifreli kaydedildi, arayüze dönmez", st.hasToken && !JSON.stringify(st).includes("sk-ant") && !tokenFile.toString("latin1").includes("sk-ant"), JSON.stringify({ hasToken: st.hasToken, routine: st.routine }));
       // 401: hata gösterilir, çalışma kaydedilmez
-      await js(`document.querySelector('.hub-manager-confirm .btn:not(.primary)')?.click()`);
-      await wait(500);
-      await key("G", ["control", "alt"]);
+      await js(`[...document.querySelectorAll('.hub-manager button')].find(b => b.textContent.includes('Bulutta çalıştır')).click()`);
       await wait(1200);
+      check("bulut: düğme 'bulutta başlasın' onayını açar", await js(`/bulutta başlasın/.test(document.querySelector('.hub-manager-confirm')?.textContent || '')`));
       await js(`[...document.querySelectorAll('.hub-manager-confirm button')].find(b => b.textContent.includes('Başlat')).click()`);
       await wait(2500);
       check("yönetici: geçersiz anahtar (401) anlaşılır hata verir", /Anahtar geçersiz/.test(await toastText()) && hits.length === 1, await toastText());
