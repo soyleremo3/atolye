@@ -196,6 +196,16 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
   if (phase === "agents") {
     const repo = process.env.ATOLYE_AGENTS || "";
     const rd = (rel: string) => { try { return readFileSync(path.join(repo, rel), "utf8"); } catch { return ""; } };
+    // kopyalanan gercek repoda o an calisan ajanlar olabilir (ornegin yonetici): test sakin ofisten baslasin
+    for (const id of readdirSync(path.join(repo, "roller"))) {
+      const f = path.join(repo, "roller", id, "durum.json");
+      try {
+        const j = JSON.parse(readFileSync(f, "utf8"));
+        if (j.state === "working") writeFileSync(f, JSON.stringify({ ...j, state: "done" }, null, 2));
+      } catch {
+        /* durum dosyasi yok */
+      }
+    }
     try {
       await wait(2500);
       await key("J", ["control", "alt"]);
