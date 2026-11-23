@@ -3,7 +3,7 @@
  * (yoneticinin gunluk satirlari, uygulamaya giren degisiklikler, ajanlarin isleri, Antigravity
  * sonuclari, onaylar, sosyal medya); bir ajan rapor yazmayi unutsa bile gun bos gorunmez.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { api, type DayItem, type DaySummary } from "../api";
 
@@ -40,17 +40,23 @@ export function DayCard({ active, onOpen }: { active: boolean; onOpen: (title: s
   const [data, setData] = useState<DaySummary | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // yalniz en son istenen gunun cevabi gosterilir (gec gelen eski cevap yeni gunun ustune yazmaz)
+  const seq = useRef(0);
   const load = useCallback(async (d: string) => {
+    const my = ++seq.current;
     setBusy(true);
     try {
-      setData(await api.hub.day(d));
+      const res = await api.hub.day(d);
+      if (my === seq.current) setData(res);
     } catch {
-      setData(null);
+      if (my === seq.current) setData(null);
     } finally {
-      setBusy(false);
+      if (my === seq.current) setBusy(false);
     }
   }, []);
+  // gun degisince eski gunun icerigi kalmasin ("Okunuyor…"), sonra yeni gun yuklenir
   useEffect(() => {
+    setData(null);
     void load(day);
   }, [day, load]);
   useEffect(() => api.hub.onSynced(() => void load(day)), [day, load]);
