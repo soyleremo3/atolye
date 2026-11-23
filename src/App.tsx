@@ -60,7 +60,7 @@ function TitleBar() {
 function AgentsButton() {
   const pending = useStore((s) => s.agentsPending);
   return (
-    <button className="icon-btn ribbon-badge-host" title="Ajanlar (Ctrl+Alt+J)" onMouseEnter={prefetch.agents} onClick={() => openView(AGENTS_PATH)}>
+    <button className="icon-btn ribbon-badge-host" title="Merkez: robotlar, raporlar, onaylar, GitHub (Ctrl+Alt+J)" onMouseEnter={prefetch.agents} onClick={() => openView(AGENTS_PATH)}>
       <Bot size={18} />
       {pending > 0 && <span className="ribbon-badge">{pending}</span>}
     </button>

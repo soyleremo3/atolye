@@ -62,7 +62,7 @@ function tabIcon(tab: Tab) {
   return <FileText size={14} />;
 }
 
-const VIEW_TITLES: Record<string, string> = { graph: "Grafik", snippets: "Kod parçaları", tools: "Araçlar", http: "HTTP istekleri", agents: "Ajanlar", assistant: "Not Asistanı" };
+const VIEW_TITLES: Record<string, string> = { graph: "Grafik", snippets: "Kod parçaları", tools: "Araçlar", http: "HTTP istekleri", agents: "Merkez", assistant: "Not Asistanı" };
 const tabTitle = (t: Tab) => (isViewPath(t.path) ? VIEW_TITLES[t.kind] : t.kind === "note" ? title(t.path) : basename(t.path));
 const tabOrder = (t: Tab) => Number(t.id.slice(1));
 const template = (sizes: number[]) => sizes.map((s) => `minmax(0, ${s}fr)`).join(" 1px ");

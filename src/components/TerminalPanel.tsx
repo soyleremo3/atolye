@@ -152,9 +152,18 @@ export function TerminalPanel() {
     });
   };
 
-  // ilk acilista bir PowerShell
+  // baska ekrandan gelen istek (Merkez: "Claude Code'u uygulamada ac"), yoksa ilk acilista bir PowerShell
+  const request = useTerminal((s) => s.request);
   useEffect(() => {
-    if (open && !started.current && profiles.length && dirs.length) {
+    if (!profiles.length || !dirs.length) return;
+    if (request) {
+      started.current = true;
+      useTerminal.setState({ request: null });
+      if (dirs.some((d) => d.id === request.dir)) setDir(request.dir);
+      void newTab(request.profile, request.dir);
+      return;
+    }
+    if (open && !started.current) {
       started.current = true;
       if (!tabs.length) void newTab("powershell");
     }

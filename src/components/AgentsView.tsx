@@ -5,16 +5,18 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  Bot, Check, CircleAlert, CircleDot, FileText, FolderOpen, KanbanSquare, Loader2, MessageSquarePlus, Moon, Play, RefreshCw,
+  Bot, Check, CircleAlert, Gauge, CircleDot, FileText, FolderOpen, KanbanSquare, Loader2, MessageSquarePlus, Moon, Play, RefreshCw,
   ScrollText, ShieldCheck, Square, X,
 } from "lucide-react";
-import { api, type AgentItem, type AgentRole, type AgentRun, type AgentRunEvent, type AgentsConfig, type AgentsSnapshot } from "../api";
+import { api, type AgentItem, type AgentRole, type AgentRun, type AgentRunEvent, type AgentsConfig, type AgentsSnapshot, type GhInfo, type ReportItem } from "../api";
+import { HubView } from "./HubView";
 import { md, stripFrontmatter, type RenderEnv } from "../lib/markdown";
 import { toast, useStore } from "../store";
 import { AgentsOffice3D } from "./AgentsOffice3D";
 
-type TabId = "office" | "approvals" | "board" | "reports" | "notes" | "runs";
+type TabId = "hub" | "office" | "approvals" | "board" | "reports" | "notes" | "runs";
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
+  { id: "hub", label: "Merkez", icon: <Gauge size={15} /> },
   { id: "office", label: "Ofis", icon: <Bot size={15} /> },
   { id: "approvals", label: "Onaylar", icon: <ShieldCheck size={15} /> },
   { id: "board", label: "Pano", icon: <KanbanSquare size={15} /> },
@@ -23,8 +25,7 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: "runs", label: "Çalıştır", icon: <Play size={15} /> },
 ];
 const TEAMS: Record<string, string> = { lead: "Yönetim", developer: "Developer", sales: "Satış", general: "Genel" };
-const STATE_LABEL: Record<string, string> = { idle: "Uyuyor", working: "Çalışıyor", done: "Bitti", failed: "Hata", blocked: "Takıldı" };
-const SYNC_EVERY_MS = 5 * 60_000;
+const STATE_LABEL: Record<string, string> = { idle: "Hazır", working: "Çalışıyor", done: "Bitti", failed: "Hata", blocked: "Takıldı" };
 const REFRESH_EVERY_MS = 20_000;
 
 // Ajan dosyalari kasanin disinda: [[baglanti]] cozulmez, duz metin kalir
@@ -56,16 +57,16 @@ async function act(p: Promise<string>, after: () => void) {
 export function AgentsView({ active }: { active: boolean }) {
   const [tab, setTabState] = useState<TabId>(() => {
     try {
-      const v = localStorage.getItem("atolye.agents.tab");
-      return (TABS.some((x) => x.id === v) ? v : "office") as TabId;
+      const v = localStorage.getItem("atolye.agents.tab2");
+      return (TABS.some((x) => x.id === v) ? v : "hub") as TabId;
     } catch {
-      return "office";
+      return "hub";
     }
   });
   const setTab = (v: TabId) => {
     setTabState(v);
     try {
-      localStorage.setItem("atolye.agents.tab", v);
+      localStorage.setItem("atolye.agents.tab2", v);
     } catch {
       /* yok sayilir */
     }
@@ -91,8 +92,6 @@ export function AgentsView({ active }: { active: boolean }) {
     }
   };
   const lastSync = useRef(0);
-  const tabRef = useRef<TabId>("office");
-  tabRef.current = tab;
 
   const refresh = useCallback(async () => {
     try {
@@ -124,15 +123,14 @@ export function AgentsView({ active }: { active: boolean }) {
     void sync(true);
   }, [sync]);
 
+  // Esitlemeyi ana surec arka planda 3 dakikada bir yapar (Atolye acik oldukca, bu ekran kapali olsa bile);
+  // her esitlemeden sonra ekran tazelenir. Ekran acikken yerel dosyalar 20 sn'de bir yeniden okunur.
+  useEffect(() => api.hub.onSynced(() => void refresh()), [refresh]);
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => {
-      // ofis aciksa dakikada bir eşitle (bulut isleri ~1 dk icinde gorunur), degilse 5 dakikada bir
-      if (Date.now() - lastSync.current > (tabRef.current === "office" ? 60_000 : SYNC_EVERY_MS)) void sync(true);
-      else void refresh();
-    }, REFRESH_EVERY_MS);
+    const t = setInterval(() => void refresh(), REFRESH_EVERY_MS);
     return () => clearInterval(t);
-  }, [active, refresh, sync]);
+  }, [active, refresh]);
 
   const open = async (title: string, rel: string) => {
     try {
@@ -150,7 +148,7 @@ export function AgentsView({ active }: { active: boolean }) {
   return (
     <div className="ag">
       <header className="ag-head">
-        <div className="ag-title"><Bot size={18} /> Ajanlar</div>
+        <div className="ag-title"><Gauge size={18} /> Kontrol merkezi</div>
         <nav className="ag-tabs">
           {TABS.map((t) => (
             <button key={t.id} className={`ag-tab${tab === t.id ? " on" : ""}`} onClick={() => setTab(t.id)}>
@@ -160,7 +158,7 @@ export function AgentsView({ active }: { active: boolean }) {
           ))}
         </nav>
         <div className="ag-head-actions">
-          <button className="btn" title="git pull: buluttaki son durumu getir" onClick={() => void sync()} disabled={syncing}>
+          <button className="btn" title="Bu PC ile bulutu şimdi eşitle (normalde 3 dk'da bir kendiliğinden)" onClick={() => void sync()} disabled={syncing}>
             {syncing ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Eşitle
           </button>
           <button className="icon-btn" title="Ajan reposunu seç" onClick={() => void choose("repo")}><FolderOpen size={16} /></button>
@@ -176,6 +174,9 @@ export function AgentsView({ active }: { active: boolean }) {
 
       {snap && (
         <div className="ag-body">
+          {tab === "hub" && (
+            <HubView snap={snap} active={active && tab === "hub"} onOpen={open} onDoc={(title, text) => setDoc({ title, text })} onTab={setTab} syncing={syncing} onSync={() => void sync()} />
+          )}
           {tab === "office" && (
             <>
               <div className="ag-viewswitch">
@@ -192,7 +193,7 @@ export function AgentsView({ active }: { active: boolean }) {
           )}
           {tab === "approvals" && <Approvals snap={snap} onDone={() => void refresh()} />}
           {tab === "board" && <Board snap={snap} onOpen={open} onDone={() => void refresh()} />}
-          {tab === "reports" && <Reports snap={snap} onOpen={open} />}
+          {tab === "reports" && <Reports onOpen={open} onDoc={(title, text) => setDoc({ title, text })} />}
           {tab === "notes" && <Notes snap={snap} onOpen={open} onDone={() => void refresh()} />}
           {tab === "runs" && <Runs snap={snap} cfg={cfg} onChooseApp={() => void choose("app")} />}
         </div>
@@ -374,20 +375,44 @@ function Board({ snap, onOpen, onDone }: { snap: AgentsSnapshot; onOpen: (t: str
 }
 
 // ------------------------------------------------------------------ Raporlar
-function Reports({ snap, onOpen }: { snap: AgentsSnapshot; onOpen: (t: string, rel: string) => void }) {
-  const kinds: [string, string][] = [["gunluk", "Günlük"], ["haftalik", "Haftalık"], ["aylik", "Aylık"]];
+function Reports({ onOpen, onDoc }: { onOpen: (t: string, rel: string) => void; onDoc: (t: string, text: string) => void }) {
+  const [items, setItems] = useState<ReportItem[]>([]);
+  const [issues, setIssues] = useState<GhInfo["issues"]>([]);
+  const [filter, setFilter] = useState<"all" | "cloud" | "pc">("all");
+  useEffect(() => {
+    void api.hub.reports().then(setItems).catch(() => undefined);
+    void api.hub.github(false).then((g) => setIssues(g.issues)).catch(() => undefined);
+  }, []);
+  const shown = items.filter((r) => filter === "all" || r.origin === filter);
+  const day = (iso: string) => (iso ? new Date(iso).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
   return (
-    <div className="ag-board">
-      {kinds.map(([k, label]) => {
-        const list = snap.reports.filter((r) => r.kind === k);
-        return (
-          <div key={k} className="ag-col">
-            <h3>{label} <span className="muted">{list.length}</span></h3>
-            {list.length === 0 && <div className="muted ag-pad">Henüz yok</div>}
-            {list.map((r) => <button key={r.name} className="ag-ticket" onClick={() => onOpen(`${label} rapor · ${r.name.replace(/\.md$/, "")}`, `raporlar/${k}/${r.name}`)}><span className="ag-ticket-title">{r.name.replace(/\.md$/, "")}</span></button>)}
-          </div>
-        );
-      })}
+    <div className="ag-list">
+      <div className="ag-viewswitch">
+        {([["all", "Hepsi"], ["cloud", "Bulut (Claude)"], ["pc", "Bu PC (Antigravity)"]] as const).map(([k, label]) => (
+          <button key={k} className={`ag-tab${filter === k ? " on" : ""}`} onClick={() => setFilter(k)}>{label}</button>
+        ))}
+      </div>
+      {filter !== "pc" && issues.length > 0 && (
+        <>
+          <h3>GitHub</h3>
+          {issues.map((i) => (
+            <button key={`${i.repo}${i.number}`} className="ag-ticket hub-row" onClick={() => void api.hub.issue(i.repo, i.number).then((x) => onDoc(`#${i.number} · ${i.title}`, x)).catch((e) => toast(String(e), "error"))}>
+              <span className="hub-tag cloud">GitHub #{i.number}</span><span className="ag-ticket-title">{i.title}</span><span className="muted small">{day(i.updatedAt)}</span>
+            </button>
+          ))}
+          <h3>Raporlar</h3>
+        </>
+      )}
+      {shown.length === 0 && <div className="muted ag-pad">Henüz yok</div>}
+      {shown.map((r) => (
+        <button key={r.rel} className="ag-ticket hub-row" onClick={() => onOpen(`${r.kind} · ${r.title}`, r.rel)}>
+          <span className={`hub-tag ${r.origin}`}>{r.origin === "cloud" ? "Bulut" : "Bu PC"}</span>
+          <span className="hub-kind">{r.kind}</span>
+          <span className="ag-ticket-title">{r.title}</span>
+          {r.pending && <span className="hub-tag pc">gönderiliyor</span>}
+          <span className="muted small">{day(r.date)}</span>
+        </button>
+      ))}
     </div>
   );
 }
