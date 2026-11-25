@@ -1,7 +1,7 @@
 {
   "name": "atolye",
   "productName": "Atolye",
-  "version": "1.11.1",
+  "version": "1.12.0",
   "description": "Yazılımcılar için yerel çalışma alanı: notlar, kod parçaları, görev panosu, HTTP istemcisi ve geliştirici araçları",
   "author": "soyleremo3",
   "private": true,
