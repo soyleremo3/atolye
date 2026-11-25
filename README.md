@@ -28,6 +28,13 @@ Ayrıca: komut paleti (`Ctrl+P`), hızlı aç (`Ctrl+O`), tam metin arama, şabl
 
 ![Pano](docs/pano.png)
 
+## Gerçek kayıtlarla güncel Merkez (v1.12)
+
+- **Kontrol** şeridi GitHub CI yerine uygulamanın yerel kontrolünü gösterir (`node scripts/ci-local.mjs`, CI'daki her adım; sonucu `.git/ci-local.json`). GitHub ücretsiz planda kaldığı için Actions kapalı.
+- **Sosyal medya** iki robot: *hazırlık* (Pzt/Çar/Cum 05:30) ve *paylaşım* (her gün 10:00). Son çalışma `Basketball-APP-Posts` kayıtlarından okunur (`Queue …`, `Publish 20…`; `schedule.json` → `last.posts`).
+- **Ofis**: işini başka yere yazan roller `durum.json` yazmasa da son işiyle görünür: sosyal medya (gönderi kayıtları), raporcu ve haberler (`raporlar/haftalik`).
+- Denetim testi: `ATOLYE_SMOKE_PHASE=audit` gerçek verilerle her ajan sekmesinin ekran görüntüsünü ve verisini salt okunur döker.
+
 ## Gün özeti (v1.11)
 
 Merkez → **Gün özeti**: seçilen günde ne yapıldı, tek kartta (‹ önceki gün · Bugün · sonraki gün ›). Ajanların rapor yazmasına bağlı değil; gerçek kayıtlardan toplanır: yöneticinin `raporlar/gunluk/<gün>.md` satırları, uygulama reposuna o gün giren commit'ler (Yeni / Düzeltme / Sürüm…), `durum.json`'u o gün güncellenen ajanlar, o gün yazılan sonuçlar (`board/results`, `raporlar/haftalik|aylik`; tıklayınca açılır), o gün açılan ya da karar verilen onaylar, `Basketball-APP-Posts` sosyal medya kayıtları (`gh`, 5 dk önbellek). Yönetici artık iş seçer seçmez günlük rapora "başladı" satırı yazar (playbooks/manager.md), yarıda kalan çalışma da görünür.
