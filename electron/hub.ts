@@ -10,7 +10,7 @@
  */
 import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
-import { isRunning, listMd, readJson, requireRepo, run, withGitLock, type AgentsConfig } from "./agents";
+import { isRunning, listMd, postsCommits, readJson, requireRepo, run, withGitLock, type AgentsConfig } from "./agents";
 import { robotRuns, type AgyRun } from "./antigravity";
 
 // ---------------------------------------------------------------- otomatik esitleme
@@ -89,7 +89,7 @@ export function autoSync(cfg: AgentsConfig): Promise<SyncStatus> {
 }
 
 // ---------------------------------------------------------------- robotlar
-type Robot = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; sidecar?: string; last: { commit?: string; file?: string; roles?: string[] } | null };
+type Robot = { id: string; ad: string; where: "cloud" | "pc"; cron: string; model: string; what: string; sidecar?: string; last: { commit?: string; file?: string; roles?: string[]; posts?: string } | null };
 export type RobotView = Omit<Robot, "last"> & { next: string | null; last: string | null; live: AgyRun | null };
 
 function field(spec: string, min: number, max: number): Set<number> {
@@ -141,6 +141,11 @@ async function lastOf(root: string, last: Robot["last"]): Promise<string | null>
       if (st && st.mtimeMs > best) best = st.mtimeMs;
     }
     return best ? new Date(best).toISOString() : null;
+  }
+  // gonderi reposu (sosyal medya): mesaji bu onekle baslayan en yeni kayit
+  if (last.posts) {
+    const hit = (await postsCommits(root)).find((c) => c.subject.startsWith(last.posts!));
+    return hit?.at ?? null;
   }
   if (last.roles) {
     let best = "";
@@ -225,7 +230,17 @@ export async function allReports(cfg: AgentsConfig): Promise<ReportItem[]> {
 
 // ---------------------------------------------------------------- GitHub (gh)
 export type GhIssue = { number: number; title: string; labels: string[]; updatedAt: string; url: string; repo: "app" | "agents" };
-export type GhInfo = { ok: boolean; error?: string; issues: GhIssue[]; release: { tag: string; date: string; url: string } | null; ci: { name: string; title: string; status: string; conclusion: string; date: string; url: string }[]; ciNote?: string };
+/** Son yerel kontrol (uygulamanin scripts/ci-local.mjs'i .git/ci-local.json'a yazar). GitHub CI ucretsiz planda kapali. */
+export type GateInfo = { ok: boolean; step: string; commit: string; at: string; behind: number };
+export type GhInfo = { ok: boolean; error?: string; issues: GhIssue[]; release: { tag: string; date: string; url: string } | null; gate: GateInfo | null };
+
+async function localGate(app: string): Promise<GateInfo | null> {
+  const g = await readJson<{ ok?: boolean; step?: string; commit?: string; at?: string } | null>(path.join(app, ".git", "ci-local.json"), null);
+  if (!g?.at || !g.commit) return null;
+  // kontrolden sonra gelen degisiklik sayisi: 0 degilse sonuc eskidir
+  const r = await run("git", ["rev-list", "--count", `${g.commit}..HEAD`], app, 10_000);
+  return { ok: !!g.ok, step: g.step ?? "", commit: g.commit, at: g.at, behind: r.code === 0 ? Number(r.out.trim()) || 0 : 0 };
+}
 
 let ghCache: { at: number; data: GhInfo } | null = null;
 
@@ -238,35 +253,29 @@ async function gh(args: string[], cwd: string): Promise<unknown> {
 export async function github(cfg: AgentsConfig, force = false): Promise<GhInfo> {
   if (!force && ghCache && Date.now() - ghCache.at < 120_000) return ghCache.data;
   const root = requireRepo(cfg);
-  const data: GhInfo = { ok: true, issues: [], release: null, ci: [] };
+  const data: GhInfo = { ok: true, issues: [], release: null, gate: null };
   try {
     const issueArgs = ["issue", "list", "--state", "open", "--limit", "20", "--json", "number,title,labels,updatedAt,url"];
     const toIssue = (repo: "app" | "agents") => (x: { number: number; title: string; labels: { name: string }[]; updatedAt: string; url: string }): GhIssue => ({ number: x.number, title: x.title, labels: x.labels.map((l) => l.name), updatedAt: x.updatedAt, url: x.url, repo });
     type RawIssue = Parameters<ReturnType<typeof toIssue>>[0];
     const app = cfg.appPath && existsSync(cfg.appPath) ? cfg.appPath : "";
     // tum gh cagrilari ayni anda (sirayla ~6 sn surer)
-    const [agentIssues, appIssues, rel, remote, runs] = await Promise.all([
+    const [agentIssues, appIssues, rel, remote] = await Promise.all([
       gh(issueArgs, root) as Promise<RawIssue[]>,
       app ? (gh(issueArgs, app) as Promise<RawIssue[]>) : Promise.resolve([] as RawIssue[]),
       app ? (gh(["release", "list", "-L", "1", "--json", "tagName,publishedAt"], app) as Promise<{ tagName: string; publishedAt: string }[]>) : Promise.resolve([]),
       app ? run("gh", ["repo", "view", "--json", "url", "-q", ".url"], app, 20_000).then((r) => r.out.trim()) : Promise.resolve(""),
-      app ? (gh(["run", "list", "-L", "5", "--json", "databaseId,name,displayTitle,status,conclusion,createdAt,url"], app) as Promise<{ databaseId: number; name: string; displayTitle: string; status: string; conclusion: string; createdAt: string; url: string }[]>) : Promise.resolve([]),
     ]);
     data.issues.push(...agentIssues.map(toIssue("agents")), ...appIssues.map(toIssue("app")));
     if (rel[0]) data.release = { tag: rel[0].tagName, date: rel[0].publishedAt, url: `${remote}/releases/tag/${rel[0].tagName}` };
-    data.ci = runs.map((x) => ({ name: x.name, title: x.displayTitle, status: x.status, conclusion: x.conclusion, date: x.createdAt, url: x.url }));
     data.issues.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    // Son CI kirmiziysa: is hic baslamadiysa (adim yok) sebep kod degil GitHub hesabidir (dakika/fatura)
-    const last = runs[0];
-    if (app && last && last.status === "completed" && last.conclusion !== "success") {
-      const jobs = (await gh(["run", "view", String(last.databaseId), "--json", "jobs"], app).catch(() => null)) as { jobs: { steps: unknown[] }[] } | null;
-      if (jobs && jobs.jobs.length && jobs.jobs.every((j) => !j.steps.length))
-        data.ciNote = "CI hiç başlamadı: GitHub, hesabın Actions dakikası/ödeme ayarı (Billing & plans) yüzünden işi başlatmadı. Bu bir kod hatası değil. Ücretsiz dakikalar her ay başında yenilenir; para ödemen gerekmez.";
-    }
   } catch (e) {
     data.ok = false;
     data.error = `GitHub okunamadı (internet ya da gh girişi): ${String((e as Error).message || e).slice(0, 160)}`;
   }
+  // yerel kontrol GitHub'a bagli degil: internet yokken de gosterilir
+  const appDir = cfg.appPath && existsSync(cfg.appPath) ? cfg.appPath : "";
+  if (appDir) data.gate = await localGate(appDir).catch(() => null);
   ghCache = { at: Date.now(), data };
   return data;
 }

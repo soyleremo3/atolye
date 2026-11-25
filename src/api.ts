@@ -31,7 +31,9 @@ export type ManagerStatus = { hasToken: boolean; canEncrypt: boolean; routine: s
 export type AgyRun = { sidecar: string; name: string; state: "running" | "done" | "failed"; started: string; updated: string; model: string | null; note: string };
 export type ReportItem = { rel: string; title: string; kind: string; origin: "cloud" | "pc"; pending: boolean; date: string };
 export type GhIssue = { number: number; title: string; labels: string[]; updatedAt: string; url: string; repo: "app" | "agents" };
-export type GhInfo = { ok: boolean; error?: string; issues: GhIssue[]; release: { tag: string; date: string; url: string } | null; ci: { name: string; title: string; status: string; conclusion: string; date: string; url: string }[]; ciNote?: string };
+/** Son yerel kontrol (uygulamanin scripts/ci-local.mjs); GitHub CI ucretsiz planda kapali. */
+export type GateInfo = { ok: boolean; step: string; commit: string; at: string; behind: number };
+export type GhInfo = { ok: boolean; error?: string; issues: GhIssue[]; release: { tag: string; date: string; url: string } | null; gate: GateInfo | null };
 export type AgentRun = { id: string; role: string; started: number; ended?: number; ok?: boolean; summary?: string; events: AgentRunEvent[] };
 export type TermProfile = { id: string; name: string; available: boolean };
 export type TermDir = { id: string; name: string; path: string; group: string; removable?: boolean };

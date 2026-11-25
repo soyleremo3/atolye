@@ -55,7 +55,7 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
     setBridge(br);
     setReports(rep);
     if (st) setStatus(st);
-    setGh(await api.hub.github(forceGh).catch((e) => ({ ok: false, error: errText(e), issues: [], release: null, ci: [] })));
+    setGh(await api.hub.github(forceGh).catch((e) => ({ ok: false, error: errText(e), issues: [], release: null, gate: null })));
   }, []);
 
   useEffect(() => {
@@ -90,8 +90,12 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
   const mgrOnly = robots.some((r) => r.id === "manager" && r.live?.state === "running") && !claudeWorking.some((r) => r.id === "manager") ? 1 : 0;
   const working = { length: claudeWorking.length + agyRunning.length + mgrOnly };
   const pending = snap.approvals.pending;
-  const ciLast = gh?.ci[0];
-  const ciBad = !!ciLast && ciLast.status === "completed" && ciLast.conclusion !== "success";
+  // GitHub CI ucretsiz planda kapali; kontrol bilgisayarda/bulutta scripts/ci-local.mjs ile yapilir
+  const gate = gh?.gate ?? null;
+  const gateBad = !!gate && !gate.ok;
+  const gateText = !gate ? "Kontrol —" : gate.ok ? `Kontrol yeşil · ${when(gate.at)}` : "Kontrol kırmızı";
+  const gateTitle = !gate ? "Uygulamanın kontrolü (node scripts/ci-local.mjs) bu bilgisayarda henüz çalışmadı." : `Son kontrol: ${gate.commit}${gate.behind ? ` · sonra ${gate.behind} değişiklik geldi (yönetici kendi kontrolünü yapar)` : ""}${gate.ok ? "" : `
+Kalan adım: ${gate.step}`}`;
   const pendingReports = reports.filter((r) => r.pending).length;
 
   return (
@@ -109,8 +113,8 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
         <button className={`hub-pill ${pending.length ? "warn" : "ok"}`} onClick={() => onTab("approvals")}>
           <ShieldCheck size={15} /> {pending.length ? `${pending.length} onay bekliyor` : "Bekleyen onay yok"}
         </button>
-        <button className={`hub-pill ${ciBad ? "bad" : "ok"}`} onClick={() => ciLast && run(api.hub.openUrl(ciLast.url))} title={ciLast ? ciLast.title : ""}>
-          <GitBranch size={15} /> {ciLast ? (ciBad ? (gh?.ciNote ? "CI durdu (GitHub dakikası)" : "CI kırmızı") : ciLast.status !== "completed" ? "CI çalışıyor" : "CI yeşil") : "CI —"}
+        <button className={`hub-pill ${gateBad ? "bad" : "ok"}`} onClick={() => gh?.release && run(api.hub.openUrl(gh.release.url))} title={gateTitle}>
+          <GitBranch size={15} /> {gateText}
           {gh?.release && <span className="muted"> · {gh.release.tag}</span>}
         </button>
       </section>
@@ -246,23 +250,12 @@ export function HubView({ snap, active, onOpen, onDoc, onTab, syncing, onSync }:
           ) : (
             gh?.ok && <p className="muted">Açık issue yok.</p>
           )}
-          {gh?.ciNote && <div className="ag-error"><TriangleAlert size={14} /> {gh.ciNote}</div>}
-          {gh?.ci.length ? (
-            <>
-              <h4>Son CI çalışmaları</h4>
-              <ul className="hub-list">
-                {gh.ci.slice(0, 3).map((c) => (
-                  <li key={c.url}>
-                    <button onClick={() => run(api.hub.openUrl(c.url))}>
-                      <i className={`hub-dot ${c.status !== "completed" ? "live" : c.conclusion === "success" ? "on" : "bad"}`} />
-                      <span className="hub-name">{c.title}</span>
-                      <span className="muted small">{when(c.date)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
+          {gate && (
+            <p className={`small${gateBad ? " ag-error" : ""}`}>
+              <i className={`hub-dot ${gate.ok ? "on" : "bad"}`} /> Son kontrol {gate.ok ? "yeşil" : `kırmızı (${gate.step})`} · {when(gate.at)} · {gate.commit}
+              {gate.behind ? <span className="muted"> · sonra {gate.behind} değişiklik</span> : null}
+            </p>
+          )}
           {gh?.release && (
             <p className="small">
               Son sürüm <button className="link" onClick={() => run(api.hub.openUrl(gh.release!.url))}>{gh.release.tag}</button> · {when(gh.release.date)}

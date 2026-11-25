@@ -558,6 +558,42 @@ export async function runSmoke(win: BrowserWindow, outDir: string): Promise<void
   }
 
   // Merkez gercek verilerle (salt okunur goruntu; ATOLYE_AGENTS ve ATOLYE_APP gercek repolar)
+  // Denetim: gercek verilerle (salt okunur) her ajan sekmesinin ekran goruntusu + Merkez/Ofis verisinin dokumu.
+  if (phase === "audit") {
+    try {
+      await wait(3000);
+      await key("J", ["control", "alt"]);
+      await wait(6000);
+      const dump: Record<string, unknown> = {};
+      dump.robots = await js(`window.atolye.hub.robots()`);
+      dump.status = await js(`window.atolye.hub.status()`);
+      dump.day = await js(`window.atolye.hub.day(new Date().toLocaleDateString('en-CA'))`);
+      dump.yesterday = await js(`window.atolye.hub.day(new Date(Date.now()-864e5).toLocaleDateString('en-CA'))`);
+      dump.snapshot = await js(`window.atolye.agents.snapshot()`);
+      dump.manager = await js(`window.atolye.manager.status()`);
+      dump.bridge = await js(`window.atolye.hub.bridgeStatus()`);
+      for (const t of ["Merkez", "Ofis", "Onaylar", "Pano", "Raporlar", "Notlar", "Çalıştır"]) {
+        await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.trim() === ${JSON.stringify(t)})?.click()`);
+        await wait(2500);
+        await shot(`audit-${t}`);
+        dump[`text:${t}`] = await js(`(document.querySelector('.ag-body') || document.querySelector('.agents') || document.body).innerText.slice(0, 6000)`);
+        if (t === "Ofis") {
+          await js(`[...document.querySelectorAll('.ag-tab')].find(b => b.textContent.trim() === 'Kartlar')?.click()`);
+          await wait(2000);
+          await shot("audit-Ofis-kartlar");
+          dump["text:Ofis-kartlar"] = await js(`(document.querySelector('.ag-body') || document.body).innerText.slice(0, 8000)`);
+        }
+      }
+      writeFileSync(path.join(outDir, "audit.json"), JSON.stringify(dump, null, 2));
+      check("denetim: döküm yazıldı", true);
+    } catch (e) {
+      check("denetim", false, String(e));
+    }
+    await fs.writeFile(path.join(outDir, "log.txt"), log.join("\n"), "utf8");
+    app.quit();
+    return;
+  }
+
   if (phase === "hub") {
     try {
       await wait(2500);

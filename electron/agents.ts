@@ -77,12 +77,41 @@ export function requireRepo(cfg: AgentsConfig): string {
   return cfg.repoPath;
 }
 
+/** Gonderi reposunun son kayitlari (bulut hazirlar "Queue …", paylasir "Publish …"); 5 dk onbellek. */
+let postsCache: { at: number; items: { at: string; subject: string }[] } | null = null;
+export async function postsCommits(cwd: string): Promise<{ at: string; subject: string }[]> {
+  if (postsCache && Date.now() - postsCache.at < 5 * 60_000) return postsCache.items;
+  const r = await run("gh", ["api", "repos/soyleremo3/Basketball-APP-Posts/commits?per_page=40", "--jq", ".[] | [.commit.committer.date, (.commit.message | split(\"\\n\")[0])] | @tsv"], cwd, 30_000);
+  if (r.code !== 0) return postsCache?.items ?? [];
+  const items = r.out.split("\n").filter(Boolean).map((l) => { const [at, subject] = l.split("\t"); return { at, subject: subject ?? "" }; });
+  postsCache = { at: Date.now(), items };
+  return items;
+}
+
+/** Isini baska bir repoya ya da rapora yazan roller: durum.json'u yazmasalar da ofiste son isleri gorunsun. */
+async function evidence(root: string, id: string): Promise<{ at: string; did: string } | null> {
+  if (id === "social") {
+    const c = (await postsCommits(root)).find((x) => /^(Queue |Publish 20)/.test(x.subject));
+    return c ? { at: c.at, did: c.subject.startsWith("Publish") ? `LinkedIn'de paylaşıldı: ${c.subject.slice(8)}` : `Gönderi hazırlandı: ${c.subject.slice(6)}` } : null;
+  }
+  if (id === "reporter" || id === "news") {
+    const names = (await listMd(path.join(root, "raporlar", "haftalik"))).filter((n) => n.startsWith("haberler-") === (id === "news"));
+    if (!names.length) return null;
+    const st = await fs.stat(path.join(root, "raporlar", "haftalik", names[0])).catch(() => null);
+    return st ? { at: new Date(st.mtimeMs).toISOString(), did: `${id === "news" ? "Haftalık haberler" : "Haftalık rapor"} yazıldı: ${names[0].replace(/.md$/, "")}` } : null;
+  }
+  return null;
+}
+
 export async function snapshot(cfg: AgentsConfig) {
   const root = requireRepo(cfg);
   const roster = (await readJson<{ roles: any[] }>(path.join(root, "roster.json"), { roles: [] })).roles;
   const agy = await runningRoles(root).catch(() => ({} as Awaited<ReturnType<typeof runningRoles>>));
   const roles = await Promise.all(roster.map(async (r) => {
-    const live = await readJson<Record<string, unknown> | null>(path.join(root, "roller", r.id, "durum.json"), null);
+    let live = await readJson<Record<string, unknown> | null>(path.join(root, "roller", r.id, "durum.json"), null);
+    const ev = await evidence(root, r.id).catch(() => null);
+    if (ev && live?.state !== "working" && (!live?.lastRun || new Date(ev.at) > new Date(String(live.lastRun))))
+      live = { ...(live ?? { role: r.id, number: r.number, model: r.model, next: "", blockedOn: "" }), state: "done", lastRun: ev.at, did: ev.did };
     const run = agy[r.id];
     // Antigravity su an bu rol icin calisiyorsa ofiste "calisiyor" gorunsun (durum.json is bitince yazilir)
     return { ...r, live: run ? { ...(live ?? { role: r.id, number: r.number, model: r.model, lastRun: null, next: "", blockedOn: "" }), state: "working", did: `Antigravity çalışıyor (${run.name}, ${run.note})`, source: "antigravity" } : live };
