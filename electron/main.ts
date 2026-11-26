@@ -537,7 +537,10 @@ function registerIpc(): void {
     const st = await manager.status(cfg);
     if (st.phase === "running" || st.phase === "starting") throw new Error("Yönetici şu an bulutta çalışıyor; bitince yeniden başlatabilirsin.");
     await background(); // once bu PC'deki Antigravity sonuclari gitsin, bulut insin
-    return agents.startManager(cfg, (e) => win?.webContents.send("agents:event", e));
+    return agents.startManager(cfg, (e) => {
+      win?.webContents.send("agents:event", e);
+      if (e.kind === "end") setTimeout(() => void background(), 2_000);
+    });
   });
   // Gun ozeti: secilen gunde ne yapildi (gercek kayitlardan)
   handle("hub:day", (day: string) => daily.daySummary(agentsCfg(), String(day ?? "")));
@@ -557,8 +560,12 @@ function registerIpc(): void {
   handle("agents:decide", (name: string, decision: "approved" | "rejected", note: string) => agents.decide(agentsCfg(), String(name), decision, String(note ?? "")));
   handle("agents:newTask", (title: string, body: string, forWho: "claude" | "agy") => agents.newTask(agentsCfg(), String(title), String(body ?? ""), forWho));
   handle("agents:note", (text: string, roles: string) => agents.ownerNote(agentsCfg(), String(text), String(roles ?? "")));
-  handle("agents:run", (role: string, task: string) => agents.startRun(agentsCfg(), String(role), String(task ?? ""), (e) => win?.webContents.send("agents:event", e)));
-  handle("agents:runs", () => agents.listRuns());
+  handle("agents:run", (role: string, task: string) =>
+    agents.startRun(agentsCfg(), String(role), String(task ?? ""), (e) => {
+      win?.webContents.send("agents:event", e);
+      if (e.kind === "end") setTimeout(() => void background(), 2_000);
+    }));
+  handle("agents:runs", () => agents.listRuns(agentsCfg()));
   handle("agents:stop", () => agents.stopRun());
 
   // ---------------------------------------------------------------- terminal

@@ -37,6 +37,7 @@ function porcelainPaths(out: string): string[] {
 
 async function syncAgents(root: string): Promise<{ r: RepoSync; saved: number }> {
   const at = new Date().toISOString();
+  if (isRunning()) return { r: { ok: true, text: "Bu PC'de ajan çalışıyor; bitince eşitlenecek", at }, saved: 0 };
   const st = await run("git", ["-c", "core.quotePath=false", "status", "--porcelain", "-z", "-uall"], root, 20_000);
   if (st.code !== 0) return { r: { ok: false, text: `git okunamadı: ${st.out.slice(-160)}`, at }, saved: 0 };
   const mine = [...new Set(porcelainPaths(st.out).filter((p) => SAFE.test(p)))];
@@ -164,7 +165,7 @@ export async function robots(cfg: AgentsConfig): Promise<RobotView[]> {
   const runs = await robotRuns(root).catch(() => ({} as Record<string, AgyRun>));
   // Buluttaki yonetici: durum.json "working" ve son 3 saatte degismis -> su an calisiyor (zamanlanmis ya da tusla)
   const mgrFile = path.join(root, "roller", "manager", "durum.json");
-  const mgr = await readJson<{ state?: string; did?: string } | null>(mgrFile, null);
+  const mgr = await readJson<{ state?: string; did?: string; lastRun?: string | null } | null>(mgrFile, null);
   const mgrAt = (await fs.stat(mgrFile).catch(() => null))?.mtimeMs ?? 0;
   if (isRunning("manager")) {
     const at = new Date().toISOString();
@@ -176,8 +177,9 @@ export async function robots(cfg: AgentsConfig): Promise<RobotView[]> {
   return Promise.all(list.map(async (r) => {
     const run = runs[r.id] ?? null;
     let last = await lastOf(root, r.last);
+    if (r.id === "manager" && mgr?.lastRun && (!last || (Date.parse(mgr.lastRun) || 0) > (Date.parse(last) || 0))) last = mgr.lastRun;
     // Antigravity'nin kendi kaydi daha yeniyse son calisma odur (rapor dosyasi yazilmasa da)
-    if (run && run.state !== "running" && (!last || run.updated > last)) last = run.updated;
+    if (run && run.state !== "running" && (!last || (Date.parse(run.updated) || 0) > (Date.parse(last) || 0))) last = run.updated;
     // Bulut robotu su an bu PC'de calisiyorsa (yonetici tusu) "Nerede" o anki yeri gostersin
     const where = r.id === "manager" && isRunning("manager") ? "pc" : r.where;
     return { id: r.id, ad: r.ad, where, cron: r.cron, model: r.model, what: r.what, sidecar: r.sidecar, next: nextRun(r.cron)?.toISOString() ?? null, last, live: run };
@@ -216,16 +218,19 @@ export async function allReports(cfg: AgentsConfig): Promise<ReportItem[]> {
   for (const rel of files) {
     const info = seen.get(rel);
     const stat = await fs.stat(path.join(root, rel)).catch(() => null);
+    const name = path.basename(rel);
+    const isClaudeReport = rel.startsWith("raporlar/gunluk/") || (rel.startsWith("raporlar/haftalik/") && !name.startsWith("haberler-"));
+    const isAgyReport = name.startsWith("critic-") || name.startsWith("media-") || name.startsWith("haberler-");
     out.push({
       rel,
       title: path.basename(rel, ".md"),
       kind: kindOf(rel),
-      origin: info && /claude/i.test(info.author) ? "cloud" : "pc",
+      origin: isAgyReport ? "pc" : isClaudeReport || (info && /claude/i.test(info.author)) ? "cloud" : "pc",
       pending: pendingSet.has(rel),
       date: info?.date ?? (stat ? new Date(stat.mtimeMs).toISOString() : ""),
     });
   }
-  return out.sort((a, b) => b.date.localeCompare(a.date));
+  return out.sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
 }
 
 // ---------------------------------------------------------------- GitHub (gh)
@@ -242,6 +247,20 @@ async function localGate(app: string): Promise<GateInfo | null> {
   return { ok: !!g.ok, step: g.step ?? "", commit: g.commit, at: g.at, behind: r.code === 0 ? Number(r.out.trim()) || 0 : 0 };
 }
 
+async function localRelease(app: string, remoteUrl = ""): Promise<{ tag: string; date: string; url: string } | null> {
+  const t = await run("git", ["tag", "-l", "v*", "--sort=-v:refname"], app, 10_000);
+  const tag = t.code === 0 ? t.out.split(/\r?\n/).map((x) => x.trim()).find(Boolean) : "";
+  if (!tag) return null;
+  const d = await run("git", ["log", "-1", "--format=%cI", tag], app, 10_000);
+  const date = d.code === 0 && d.out.trim() ? d.out.trim() : "";
+  let base = remoteUrl;
+  if (!base) {
+    const r = await run("git", ["remote", "get-url", "origin"], app, 10_000);
+    base = r.code === 0 ? r.out.trim().replace(/\.git$/, "").replace(/^git@github\.com:/, "https://github.com/") : "";
+  }
+  return date ? { tag, date, url: base ? `${base}/releases/tag/${tag}` : "" } : null;
+}
+
 let ghCache: { at: number; data: GhInfo } | null = null;
 
 async function gh(args: string[], cwd: string): Promise<unknown> {
@@ -254,28 +273,35 @@ export async function github(cfg: AgentsConfig, force = false): Promise<GhInfo> 
   if (!force && ghCache && Date.now() - ghCache.at < 120_000) return ghCache.data;
   const root = requireRepo(cfg);
   const data: GhInfo = { ok: true, issues: [], release: null, gate: null };
+  const appDir = cfg.appPath && existsSync(cfg.appPath) ? cfg.appPath : "";
+  let remoteUrl = "";
   try {
     const issueArgs = ["issue", "list", "--state", "open", "--limit", "20", "--json", "number,title,labels,updatedAt,url"];
     const toIssue = (repo: "app" | "agents") => (x: { number: number; title: string; labels: { name: string }[]; updatedAt: string; url: string }): GhIssue => ({ number: x.number, title: x.title, labels: x.labels.map((l) => l.name), updatedAt: x.updatedAt, url: x.url, repo });
     type RawIssue = Parameters<ReturnType<typeof toIssue>>[0];
-    const app = cfg.appPath && existsSync(cfg.appPath) ? cfg.appPath : "";
     // tum gh cagrilari ayni anda (sirayla ~6 sn surer)
     const [agentIssues, appIssues, rel, remote] = await Promise.all([
       gh(issueArgs, root) as Promise<RawIssue[]>,
-      app ? (gh(issueArgs, app) as Promise<RawIssue[]>) : Promise.resolve([] as RawIssue[]),
-      app ? (gh(["release", "list", "-L", "1", "--json", "tagName,publishedAt"], app) as Promise<{ tagName: string; publishedAt: string }[]>) : Promise.resolve([]),
-      app ? run("gh", ["repo", "view", "--json", "url", "-q", ".url"], app, 20_000).then((r) => r.out.trim()) : Promise.resolve(""),
+      appDir ? (gh(issueArgs, appDir) as Promise<RawIssue[]>) : Promise.resolve([] as RawIssue[]),
+      appDir ? (gh(["release", "list", "-L", "1", "--json", "tagName,publishedAt"], appDir) as Promise<{ tagName: string; publishedAt: string }[]>) : Promise.resolve([]),
+      appDir ? run("gh", ["repo", "view", "--json", "url", "-q", ".url"], appDir, 20_000).then((r) => r.out.trim()) : Promise.resolve(""),
     ]);
+    remoteUrl = remote;
     data.issues.push(...agentIssues.map(toIssue("agents")), ...appIssues.map(toIssue("app")));
     if (rel[0]) data.release = { tag: rel[0].tagName, date: rel[0].publishedAt, url: `${remote}/releases/tag/${rel[0].tagName}` };
-    data.issues.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    data.issues.sort((a, b) => (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0));
   } catch (e) {
     data.ok = false;
     data.error = `GitHub okunamadı (internet ya da gh girişi): ${String((e as Error).message || e).slice(0, 160)}`;
   }
-  // yerel kontrol GitHub'a bagli degil: internet yokken de gosterilir
-  const appDir = cfg.appPath && existsSync(cfg.appPath) ? cfg.appPath : "";
-  if (appDir) data.gate = await localGate(appDir).catch(() => null);
+  // Yerel git etiketi GitHub Release'den daha yeniyse (or. GitHub 500 hatasi) ya da cevrimdisiysa yerel etiketi goster
+  if (appDir) {
+    const localRel = await localRelease(appDir, remoteUrl).catch(() => null);
+    if (localRel && (!data.release || (Date.parse(localRel.date) || 0) > (Date.parse(data.release.date) || 0))) {
+      data.release = localRel;
+    }
+    data.gate = await localGate(appDir).catch(() => null);
+  }
   ghCache = { at: Date.now(), data };
   return data;
 }

@@ -84,8 +84,12 @@ async function recentConversations(root: string, now: number): Promise<Conv[]> {
   return out;
 }
 
-/** Karsilastirma icin: <USER_REQUEST> sarmalayicisi ve bosluk farklari atilir, ilk 160 karakter. */
-const norm = (t: string) => t.replace(/<\/?USER_REQUEST>/g, "").replace(/\s+/g, " ").trim().slice(0, 160);
+/** Karsilastirma icin: <USER_REQUEST> sarmalayicisi, ek metadata ve bosluk farklari atilir, ilk 160 karakter. */
+const norm = (t: string) => {
+  const m = /<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/.exec(t);
+  const body = m ? m[1] : t.replace(/<(?:ADDITIONAL_METADATA|USER_SETTINGS_CHANGE)>[\s\S]*$/, "").replace(/<\/?USER_REQUEST>/g, "");
+  return body.replace(/\s+/g, " ").trim().slice(0, 160);
+};
 
 /**
  * Bir otomasyonun en son calismasi. Iki kaynak: zamanlayici kaydi (sidecar.log "Triggering command")
@@ -154,7 +158,7 @@ export async function robotRuns(repo: string, runs?: Record<string, AgyRun>): Pr
   return out;
 }
 
-/** board/doing'deki "for: agy" biletlerinin rolleri (gorev alici hangi rol icin calisiyor). */
+/** board/doing'deki (yoksa board/inbox'taki en yuksek puanli) "for: agy" biletlerinin rolleri (gorev alici hangi rol icin calisiyor). */
 async function doingRoles(repo: string): Promise<string[]> {
   const dir = path.join(repo, "board", "doing");
   const names = (await fs.readdir(dir).catch(() => [] as string[])).filter((n) => n.endsWith(".md"));
@@ -165,7 +169,22 @@ async function doingRoles(repo: string): Promise<string[]> {
     const role = /^role:\s*([a-z0-9-]+)\s*$/m.exec(head)?.[1];
     if (role) roles.push(role);
   }
-  return roles;
+  if (roles.length) return roles;
+  const inboxDir = path.join(repo, "board", "inbox");
+  const inboxNames = (await fs.readdir(inboxDir).catch(() => [] as string[])).filter((n) => n.endsWith(".md"));
+  let bestScore = -1;
+  let bestRole = "";
+  for (const n of inboxNames) {
+    const head = (await fs.readFile(path.join(inboxDir, n), "utf8").catch(() => "")).split(/\r?\n---/)[0];
+    if (!/^for:\s*agy\s*$/m.test(head) || /^vetoed:\s*(true|yes)\s*$/im.test(head)) continue;
+    const role = /^role:\s*([a-z0-9-]+)\s*$/m.exec(head)?.[1] ?? "";
+    const score = Number(/^score:\s*(\d+)\s*$/m.exec(head)?.[1] ?? 0);
+    if (role && score > bestScore) {
+      bestScore = score;
+      bestRole = role;
+    }
+  }
+  return bestRole ? [bestRole] : [];
 }
 
 /** Su an calisan Antigravity islerinin ofisteki rolleri: rol id -> calisma. */
@@ -174,10 +193,12 @@ export async function runningRoles(repo: string): Promise<Record<string, AgyRun>
   if (!Object.values(all).some((r) => r.state === "running")) return {};
   const list = (JSON.parse(await fs.readFile(path.join(repo, "schedule.json"), "utf8").catch(() => "{}")) as { robots?: ScheduleRobot[] }).robots ?? [];
   const out: Record<string, AgyRun> = {};
+  const fallbackRoles: Record<string, string[]> = { critic: ["auditor"], "media-prompts": ["social"] };
   for (const r of list) {
     const run = r.sidecar ? all[r.sidecar] : undefined;
     if (run?.state !== "running") continue;
-    for (const role of r.roles ?? []) {
+    const mapped = r.roles?.length ? r.roles : (r.sidecar ? fallbackRoles[r.sidecar] ?? [] : []);
+    for (const role of mapped) {
       if (role === "doing") for (const d of await doingRoles(repo)) out[d] = run;
       else out[role] = run;
     }

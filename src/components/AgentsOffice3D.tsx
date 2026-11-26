@@ -61,26 +61,49 @@ export function AgentsOffice3D({ snap, active, onOpen, onRun, onApprovals, onCha
 
   // "Hemen calistir" olaylari: calisan kopek + canli akis
   useEffect(() => {
-    void api.agents.runs().then((r) => {
-      const live = r.find((x) => !x.ended);
-      if (live) setRunning({ role: live.role, tool: "" });
-    });
     const roleOf = new Map<string, string>();
+    void api.agents.runs().then((r) => {
+      for (const item of r) roleOf.set(item.id, item.role);
+      const live = r.find((x) => !x.ended);
+      if (live) {
+        const lastTool = [...live.events].reverse().find((e) => e.kind === "tool")?.text ?? "";
+        setRunning({ role: live.role, tool: lastTool });
+      }
+      if (r[0]?.events?.length) {
+        const seeded = [...r[0].events]
+          .filter((e) => e.kind === "start" || e.kind === "tool" || e.kind === "end")
+          .slice(-20)
+          .reverse()
+          .map((e) => ({
+            at: e.at,
+            who: e.role || r[0].role,
+            text: e.kind === "start" ? "işe başladı" : e.kind === "end" ? (e.text === "bitti" ? "işi bitirdi" : e.text) : e.text,
+            tone: e.kind === "end" ? ((e.text === "bitti" ? "ok" : "bad") as "ok" | "bad") : undefined,
+          }));
+        setFeed((prev) => (prev.length ? prev : seeded));
+      }
+    });
     return api.agents.onEvent((e: AgentRunEvent) => {
       const push = (role: string, text: string, tone?: "ok" | "bad") => setFeed((f) => [{ at: e.at, who: role, text, tone }, ...f].slice(0, 40));
+      if (e.role) roleOf.set(e.runId, e.role);
       if (e.kind === "start") {
-        void api.agents.runs().then((r) => {
-          const role = r.find((x) => x.id === e.runId)?.role ?? "";
-          roleOf.set(e.runId, role);
-          setRunning({ role, tool: "" });
-          push(role, "işe başladı");
-        });
+        if (e.role) {
+          setRunning({ role: e.role, tool: "" });
+          push(e.role, "işe başladı");
+        } else {
+          void api.agents.runs().then((r) => {
+            const role = r.find((x) => x.id === e.runId)?.role ?? "";
+            roleOf.set(e.runId, role);
+            setRunning({ role, tool: "" });
+            push(role, "işe başladı");
+          });
+        }
       } else if (e.kind === "tool") {
-        const role = roleOf.get(e.runId) ?? "";
-        setRunning((r) => (r ? { ...r, tool: e.text } : r));
+        const role = e.role ?? roleOf.get(e.runId) ?? "";
+        setRunning((r) => (r ? { ...r, tool: e.text } : { role, tool: e.text }));
         push(role, e.text);
       } else if (e.kind === "end") {
-        const role = roleOf.get(e.runId) ?? "";
+        const role = e.role ?? roleOf.get(e.runId) ?? "";
         setRunning(null);
         push(role, e.text === "bitti" ? "işi bitirdi" : e.text, e.text === "bitti" ? "ok" : "bad");
         onChanged();

@@ -14,7 +14,7 @@ export type AgentsSnapshot = {
   state: string;
   commits: { hash: string; date: string; subject: string }[];
 };
-export type AgentRunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
+export type AgentRunEvent = { runId: string; role?: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
 export type RepoSync = { ok: boolean; text: string; at: string };
 export type SyncStatus = { agents: RepoSync; app: RepoSync | null; saved: number; at: string };
 export type DayItem = { text: string; at: string; rel?: string; tag?: string };

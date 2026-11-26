@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, ListChecks, Loader2, NotebookPen, Send, Sparkles, Square } from "lucide-react";
 import { api, type AskEvent } from "../api";
-import { md, stripFrontmatter, type RenderEnv } from "../lib/markdown";
+import { renderMarkdown, type RenderEnv } from "../lib/markdown";
 import { openPath, toast, useStore } from "../store";
 
 const DIR = "Notlarım";
@@ -163,7 +163,7 @@ export function AssistantView() {
         {error && <div className="ag-error">{error}</div>}
         {answer && (
           <div className="asst-answer">
-            <article className="markdown" dangerouslySetInnerHTML={{ __html: md.render(stripFrontmatter(answer), { ...ENV }) }} />
+            <article className="markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(answer, { ...ENV }) }} />
             <div className="asst-row">
               <button className="btn" onClick={() => void navigator.clipboard.writeText(answer).then(() => toast("Kopyalandı"))}>Kopyala</button>
               <button className="btn" onClick={() => void toAgents()} title="Yanıtı ajanların sahip notlarına ekler">Ajanlara gönder</button>

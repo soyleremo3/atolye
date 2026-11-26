@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { api, type AgentItem, type AgentRole, type AgentRun, type AgentRunEvent, type AgentsConfig, type AgentsSnapshot, type GhInfo, type ReportItem } from "../api";
 import { HubView } from "./HubView";
-import { md, stripFrontmatter, type RenderEnv } from "../lib/markdown";
+import { renderMarkdown, type RenderEnv } from "../lib/markdown";
 import { toast, useStore } from "../store";
 import { AgentsOffice3D } from "./AgentsOffice3D";
 import { useManagerRun } from "../lib/managerRunState";
@@ -31,7 +31,7 @@ const REFRESH_EVERY_MS = 20_000;
 
 // Ajan dosyalari kasanin disinda: [[baglanti]] cozulmez, duz metin kalir
 const AGENT_ENV: RenderEnv = { notePath: "", depth: 0, resolve: () => null, renderNote: () => "" };
-const html = (src: string) => md.render(stripFrontmatter(src), { ...AGENT_ENV });
+const html = (src: string) => renderMarkdown(src, { ...AGENT_ENV });
 const ago = (iso: string | null | undefined) => {
   if (!iso) return "hiç çalışmadı";
   const ms = Date.now() - Date.parse(iso);
@@ -132,6 +132,7 @@ export function AgentsView({ active }: { active: boolean }) {
   // Esitlemeyi ana surec arka planda 3 dakikada bir yapar (Atolye acik oldukca, bu ekran kapali olsa bile);
   // her esitlemeden sonra ekran tazelenir. Ekran acikken yerel dosyalar 20 sn'de bir yeniden okunur.
   useEffect(() => api.hub.onSynced(() => void refresh()), [refresh]);
+  useEffect(() => api.agents.onEvent((e) => { if (e.kind === "start" || e.kind === "end") void refresh(); }), [refresh]);
   useEffect(() => {
     if (!active) return;
     const t = setInterval(() => void refresh(), REFRESH_EVERY_MS);
@@ -199,7 +200,7 @@ export function AgentsView({ active }: { active: boolean }) {
           )}
           {tab === "approvals" && <Approvals snap={snap} onDone={() => void refresh()} />}
           {tab === "board" && <Board snap={snap} onOpen={open} onDone={() => void refresh()} />}
-          {tab === "reports" && <Reports onOpen={open} onDoc={(title, text) => setDoc({ title, text })} />}
+          {tab === "reports" && <Reports snap={snap} onOpen={open} onDoc={(title, text) => setDoc({ title, text })} />}
           {tab === "notes" && <Notes snap={snap} onOpen={open} onDone={() => void refresh()} />}
           {tab === "runs" && <Runs snap={snap} cfg={cfg} onChooseApp={() => void choose("app")} />}
         </div>
@@ -381,14 +382,18 @@ function Board({ snap, onOpen, onDone }: { snap: AgentsSnapshot; onOpen: (t: str
 }
 
 // ------------------------------------------------------------------ Raporlar
-function Reports({ onOpen, onDoc }: { onOpen: (t: string, rel: string) => void; onDoc: (t: string, text: string) => void }) {
+function Reports({ snap, onOpen, onDoc }: { snap: AgentsSnapshot; onOpen: (t: string, rel: string) => void; onDoc: (t: string, text: string) => void }) {
   const [items, setItems] = useState<ReportItem[]>([]);
   const [issues, setIssues] = useState<GhInfo["issues"]>([]);
   const [filter, setFilter] = useState<"all" | "cloud" | "pc">("all");
-  useEffect(() => {
+  const load = useCallback(() => {
     void api.hub.reports().then(setItems).catch(() => undefined);
     void api.hub.github(false).then((g) => setIssues(g.issues)).catch(() => undefined);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load, snap]);
+  useEffect(() => api.hub.onSynced(() => load()), [load]);
   const shown = items.filter((r) => filter === "all" || r.origin === filter);
   const day = (iso: string) => (iso ? new Date(iso).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
   return (
@@ -455,7 +460,10 @@ function Runs({ snap, cfg, onChooseApp }: { snap: AgentsSnapshot; cfg: AgentsCon
   const running = runs.some((r) => !r.ended);
 
   useEffect(() => {
-    void api.agents.runs().then(setRuns);
+    void api.agents.runs().then((list) => {
+      setRuns(list);
+      setLive((prev) => (prev.length ? prev : list[0]?.events ?? []));
+    });
     return api.agents.onEvent((e) => {
       setLive((l) => [...l.slice(-300), e]);
       if (e.kind === "start" || e.kind === "end") void api.agents.runs().then(setRuns);

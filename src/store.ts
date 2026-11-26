@@ -183,6 +183,9 @@ export async function init(): Promise<void> {
     }
     api.vault.onChanged(applyExternal);
     api.app.onThemeChanged((dark) => set({ systemDark: dark }));
+    const refreshPending = () => void api.agents.snapshot().then((s) => set({ agentsPending: s.approvals.pending.length })).catch(() => undefined);
+    refreshPending();
+    api.hub.onSynced(refreshPending);
     api.app.onFlush(async () => {
       await flushAll();
       await saveSession(true);

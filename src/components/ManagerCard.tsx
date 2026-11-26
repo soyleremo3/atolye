@@ -88,11 +88,13 @@ export function ManagerCard({ active, onAfterRun, onWatch }: { active: boolean; 
 
   const steps = local ? local.events.filter((e) => e.kind === "tool").length : 0;
   const lastTool = local ? [...local.events].reverse().find((e) => e.kind === "tool")?.text : undefined;
+  const localNewer = !!local?.ended && (!st?.managerLastRun || local.ended >= (Date.parse(st.managerLastRun) || 0));
   let line: React.ReactNode = "Panoya, raporlara ve yapılacaklara bakar; en önemli 5 işi seçip ajanlara dağıtır.";
   if (localRunning) line = <>Bu PC'de çalışıyor · başladı {hm(local!.started)} · {steps} adım{lastTool ? ` · son: ${lastTool}` : ""}</>;
-  else if (cloudRunning) line = <>Bulutta çalışıyor · başlatıldı {hm(st?.last?.at)}{st?.managerState === "working" && st.managerDid ? ` · ${st.managerDid}` : ""}</>;
-  else if (local?.ended) line = <>Son yerel çalışma {local.ok ? "bitti" : "hata verdi"} {hm(local.ended)}{local.summary ? ` · ${local.summary.split("\n")[0].slice(0, 140)}` : ""}</>;
+  else if (cloudRunning) line = <>Bulutta çalışıyor · başlatıldı {hm(st?.last?.at ?? st?.managerLastRun)}{st?.managerState === "working" && st.managerDid ? ` · ${st.managerDid}` : ""}</>;
+  else if (local?.ended && localNewer) line = <>Son yerel çalışma {local.ok ? "bitti" : "hata verdi"} {hm(local.ended)}{local.summary ? ` · ${local.summary.split("\n")[0].slice(0, 140)}` : ""}</>;
   else if (st?.phase === "done") line = <>Son bulut çalışması bitti {hm(st.managerLastRun)}{st.managerDid ? ` · ${st.managerDid}` : ""}</>;
+  else if (local?.ended) line = <>Son yerel çalışma {local.ok ? "bitti" : "hata verdi"} {hm(local.ended)}{local.summary ? ` · ${local.summary.split("\n")[0].slice(0, 140)}` : ""}</>;
 
   return (
     <section className={`hub-card hub-manager${anyRunning ? " is-running" : ""}`}>

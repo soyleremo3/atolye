@@ -63,7 +63,11 @@ export function run(cmd: string, args: string[], cwd: string, timeoutMs = 60_000
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd, windowsHide: true });
     let out = "";
-    const add = (d: Buffer) => { out = (out + d.toString()).slice(-8000); };
+    const MAX_OUT = 512_000;
+    const add = (d: Buffer) => {
+      out += d.toString();
+      if (out.length > MAX_OUT) out = out.slice(-MAX_OUT);
+    };
     child.stdout.on("data", add);
     child.stderr.on("data", add);
     const t = setTimeout(() => child.kill(), timeoutMs);
@@ -88,8 +92,17 @@ export async function postsCommits(cwd: string): Promise<{ at: string; subject: 
   return items;
 }
 
+async function gitLast(cwd: string, paths: string[], grep?: string): Promise<{ at: string; subject: string } | null> {
+  if (!cwd || !existsSync(path.join(cwd, ".git"))) return null;
+  const args = ["log", "-1", ...(grep ? ["--fixed-strings", `--grep=${grep}`] : []), "--format=%cI\x1f%s", ...(paths.length ? ["--", ...paths] : [])];
+  const r = await run("git", args, cwd, 10_000);
+  if (r.code !== 0 || !r.out.trim()) return null;
+  const [at, subject] = r.out.trim().split("\n")[0].split("\x1f");
+  return at ? { at, subject: subject ?? "" } : null;
+}
+
 /** Isini baska bir repoya ya da rapora yazan roller: durum.json'u yazmasalar da ofiste son isleri gorunsun. */
-async function evidence(root: string, id: string): Promise<{ at: string; did: string } | null> {
+async function evidence(root: string, appPath: string, id: string): Promise<{ at: string; did: string } | null> {
   if (id === "social") {
     const c = (await postsCommits(root)).find((x) => /^(Queue |Publish 20)/.test(x.subject));
     return c ? { at: c.at, did: c.subject.startsWith("Publish") ? `LinkedIn'de paylaşıldı: ${c.subject.slice(8)}` : `Gönderi hazırlandı: ${c.subject.slice(6)}` } : null;
@@ -97,21 +110,84 @@ async function evidence(root: string, id: string): Promise<{ at: string; did: st
   if (id === "reporter" || id === "news") {
     const names = (await listMd(path.join(root, "raporlar", "haftalik"))).filter((n) => n.startsWith("haberler-") === (id === "news"));
     if (!names.length) return null;
-    const st = await fs.stat(path.join(root, "raporlar", "haftalik", names[0])).catch(() => null);
-    return st ? { at: new Date(st.mtimeMs).toISOString(), did: `${id === "news" ? "Haftalık haberler" : "Haftalık rapor"} yazıldı: ${names[0].replace(/.md$/, "")}` } : null;
+    const rel = `raporlar/haftalik/${names[0]}`;
+    const g = await gitLast(root, [rel]);
+    const st = !g ? await fs.stat(path.join(root, rel)).catch(() => null) : null;
+    const at = g?.at ?? (st ? new Date(st.mtimeMs).toISOString() : "");
+    return at ? { at, did: `${id === "news" ? "Haftalık haberler" : "Haftalık rapor"} yazıldı: ${names[0].replace(/\.md$/, "")}` } : null;
+  }
+  if (id === "build") {
+    const state = await readText(path.join(root, "state.md"));
+    const sec = state.split(/^## Build decision log\b/m)[1] ?? "";
+    const m = /^-\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}):\s+(.+)$/m.exec(sec);
+    return m ? { at: `${m[1]}T${m[2]}:00+03:00`, did: m[3].trim() } : null;
+  }
+  if (id === "bridge") {
+    const g = await gitLast(root, ["board"]);
+    return g ? { at: g.at, did: g.subject } : null;
+  }
+  if (id === "info") {
+    const g = (await gitLast(appPath, ["CLAUDE.md", "README.md", "RULES.md", "docs"])) ?? (await gitLast(root, ["ANAYASA.md", "defter/genel.md", "state.md"]));
+    return g ? { at: g.at, did: g.subject } : null;
+  }
+  if (id === "github") {
+    const gate = appPath ? await readJson<{ ok?: boolean; commit?: string; at?: string } | null>(path.join(appPath, ".git", "ci-local.json"), null) : null;
+    const rel = await gitLast(appPath, [], "release: v");
+    if (gate?.at && (!rel || Date.parse(gate.at) >= Date.parse(rel.at))) {
+      return { at: gate.at, did: `Yerel CI kontrolü ${gate.ok ? "yeşil" : "kırmızı"} (${gate.commit ?? ""})` };
+    }
+    return rel ? { at: rel.at, did: rel.subject } : null;
+  }
+  if (id === "data") {
+    const g = await gitLast(appPath, ["training", "scripts/label-count.py"]);
+    return g ? { at: g.at, did: g.subject } : null;
+  }
+  if (id === "colab") {
+    const g = await gitLast(appPath, ["training/teacher.ipynb", "training/referee.ipynb", "training/ball_motion.ipynb"]);
+    return g ? { at: g.at, did: g.subject } : null;
+  }
+  if (id === "drive") {
+    const log = appPath ? await readText(path.join(appPath, "docs", "reference", "activity-log.md")) : "";
+    const m = /^-\s+(\d{4}-\d{2}-\d{2})\s+—\s+([^\r\n]*\bDrive\b[^\r\n]*)$/m.exec(log);
+    if (m) return { at: `${m[1]}T12:00:00+03:00`, did: m[2].replace(/\*\*/g, "").slice(0, 140) };
+    const g = await gitLast(appPath, ["training"]);
+    return g ? { at: g.at, did: `Eğitim dosyası güncellendi: ${g.subject}` } : null;
+  }
+  if (id === "coach") {
+    const g = await gitLast(appPath, ["src/coach"]);
+    return g ? { at: g.at, did: g.subject } : null;
   }
   return null;
 }
+
+const STALE_WORKING_MS = 3 * 60 * 60_000;
 
 export async function snapshot(cfg: AgentsConfig) {
   const root = requireRepo(cfg);
   const roster = (await readJson<{ roles: any[] }>(path.join(root, "roster.json"), { roles: [] })).roles;
   const agy = await runningRoles(root).catch(() => ({} as Awaited<ReturnType<typeof runningRoles>>));
   const roles = await Promise.all(roster.map(async (r) => {
-    let live = await readJson<Record<string, unknown> | null>(path.join(root, "roller", r.id, "durum.json"), null);
-    const ev = await evidence(root, r.id).catch(() => null);
-    if (ev && live?.state !== "working" && (!live?.lastRun || new Date(ev.at) > new Date(String(live.lastRun))))
+    const durumFile = path.join(root, "roller", r.id, "durum.json");
+    let live = await readJson<Record<string, unknown> | null>(durumFile, null);
+    if (live?.state === "working" && !isRunning(r.id)) {
+      const mtime = (await fs.stat(durumFile).catch(() => null))?.mtimeMs ?? 0;
+      const lastMs = live.lastRun ? Date.parse(String(live.lastRun)) || 0 : 0;
+      const seenAt = Math.max(mtime, lastMs);
+      if (seenAt > 0 && Date.now() - seenAt >= STALE_WORKING_MS) {
+        live = { ...live, state: "done", did: `${String(live.did || "çalışma")} (yarıda kaldı)` };
+      }
+    }
+    const ev = await evidence(root, cfg.appPath, r.id).catch(() => null);
+    if (ev && live?.state !== "working" && (!live?.lastRun || (Date.parse(ev.at) || 0) > (Date.parse(String(live.lastRun)) || 0)))
       live = { ...(live ?? { role: r.id, number: r.number, model: r.model, next: "", blockedOn: "" }), state: "done", lastRun: ev.at, did: ev.did };
+    if (isRunning(r.id)) {
+      const lastTool = current ? [...current.info.events].reverse().find((e) => e.kind === "tool")?.text : "";
+      live = {
+        ...(live ?? { role: r.id, number: r.number, model: r.model, lastRun: new Date().toISOString(), next: "", blockedOn: "" }),
+        state: "working",
+        did: `Bu PC'de çalışıyor${lastTool ? `: ${lastTool}` : ""}`,
+      };
+    }
     const run = agy[r.id];
     // Antigravity su an bu rol icin calisiyorsa ofiste "calisiyor" gorunsun (durum.json is bitince yazilir)
     return { ...r, live: run ? { ...(live ?? { role: r.id, number: r.number, model: r.model, lastRun: null, next: "", blockedOn: "" }), state: "working", did: `Antigravity çalışıyor (${run.name}, ${run.note})`, source: "antigravity" } : live };
@@ -138,7 +214,7 @@ export async function snapshot(cfg: AgentsConfig) {
 /** Ajan reposundaki bir metin dosyasini okur (yalniz bilinen klasorler). */
 export async function readDoc(cfg: AgentsConfig, rel: string): Promise<string> {
   const root = requireRepo(cfg);
-  const ok = /^(ANAYASA\.md|README\.md|state\.md|sahip-notlari\.md|defter\/genel\.md|roller\/[a-z0-9-]+\/(rol|defter)\.md|raporlar\/(gunluk|haftalik|aylik)\/[^/]+\.md|board\/(inbox|doing|done|results)\/[^/]+\.md|approvals\/(pending|decided)\/[^/]+\.md|playbooks\/[a-z-]+\.md)$/.test(rel);
+  const ok = /^(ANAYASA\.md|KURULUM\.md|README\.md|state\.md|sahip-notlari\.md|defter\/genel\.md|roller\/[a-z0-9-]+\/(rol|defter)\.md|raporlar\/(gunluk|haftalik|aylik)\/[^/]+\.md|board\/(inbox|doing|done|results)\/[^/]+\.md|approvals\/(pending|decided)\/[^/]+\.md|playbooks\/[a-z-]+\.md)$/.test(rel);
   if (!ok || rel.includes("..")) throw new Error("Bu dosya okunamaz");
   return readText(path.join(root, rel));
 }
@@ -225,12 +301,44 @@ export async function ownerNote(cfg: AgentsConfig, text: string, roles: string):
 }
 
 // ------------------------------------------------------------------ Hemen calistir
-export type RunEvent = { runId: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
+export type RunEvent = { runId: string; role?: string; kind: "start" | "tool" | "text" | "end"; text: string; at: number };
 type RunInfo = { id: string; role: string; started: number; ended?: number; ok?: boolean; summary?: string; events: RunEvent[] };
 const runs: RunInfo[] = [];
+let runsLoadedFrom = "";
 let current: { info: RunInfo; child: ChildProcessWithoutNullStreams } | null = null;
 
-export function listRuns(): RunInfo[] {
+function loadSavedRuns(root?: string): void {
+  if (process.env.ATOLYE_SMOKE || !root || runsLoadedFrom === root) return;
+  runsLoadedFrom = root;
+  try {
+    const file = path.join(root, ".atolye", "runs.json");
+    if (!existsSync(file)) return;
+    const saved = JSON.parse(readFileSync(file, "utf8")) as RunInfo[];
+    if (!Array.isArray(saved) || runs.length > 0) return;
+    for (const r of saved.slice(-10)) {
+      if (r && typeof r.id === "string" && typeof r.role === "string") {
+        runs.push({ ...r, ended: r.ended ?? r.started, ok: r.ok ?? false, events: Array.isArray(r.events) ? r.events.slice(-200) : [] });
+      }
+    }
+  } catch {
+    /* bozuk kayit yoksayilir */
+  }
+}
+
+async function saveRuns(root: string): Promise<void> {
+  if (process.env.ATOLYE_SMOKE || !root) return;
+  try {
+    const dir = path.join(root, ".atolye");
+    await fs.mkdir(dir, { recursive: true });
+    const data = runs.slice(-10).map((r) => ({ ...r, events: r.events.slice(-200) }));
+    await fs.writeFile(path.join(dir, "runs.json"), JSON.stringify(data), "utf8");
+  } catch {
+    /* yazilamadiysa gec */
+  }
+}
+
+export function listRuns(cfg?: AgentsConfig): RunInfo[] {
+  if (cfg?.repoPath) loadSavedRuns(cfg.repoPath);
   return runs.slice(-10).reverse().map((r) => ({ ...r, events: r.events.slice(-200) }));
 }
 
@@ -336,12 +444,13 @@ type LaunchOpts = { model: string | null; allowed: string; deny?: string };
 
 function launch(cfg: AgentsConfig, role: string, prompt: string, opts: LaunchOpts, send: (e: RunEvent) => void): string {
   const root = requireRepo(cfg);
+  loadSavedRuns(root);
   if (current) throw new Error(current.info.role === "manager" ? "Yönetici şu an bu PC'de çalışıyor; bitince yeniden başlatabilirsin." : "Şu an başka bir ajan çalışıyor; işler sırayla yapılır.");
   const id = `r${Date.now().toString(36)}`;
   const info: RunInfo = { id, role, started: Date.now(), events: [] };
   runs.push(info);
   const emit = (kind: RunEvent["kind"], text: string) => {
-    const e = { runId: id, kind, text: text.slice(0, 500), at: Date.now() };
+    const e: RunEvent = { runId: id, role, kind, text: text.slice(0, 500), at: Date.now() };
     info.events.push(e);
     send(e);
   };
@@ -355,6 +464,7 @@ function launch(cfg: AgentsConfig, role: string, prompt: string, opts: LaunchOpt
   const child = fake ? spawn(process.env.ATOLYE_FAKE_NODE || "node", [fake, ...args], { cwd: root, windowsHide: true }) : spawn(claudeBinary(), args, { cwd: root, windowsHide: true });
   current = { info, child };
   emit("start", `${role} başladı`);
+  void saveRuns(root);
   let buf = "";
   child.stdout.on("data", (d: Buffer) => {
     buf += d.toString();
@@ -367,7 +477,11 @@ function launch(cfg: AgentsConfig, role: string, prompt: string, opts: LaunchOpt
         const ev = JSON.parse(line);
         if (ev.type === "assistant") {
           for (const c of ev.message?.content ?? []) {
-            if (c.type === "tool_use") emit("tool", `${c.name} ${String(c.input?.file_path ?? c.input?.pattern ?? c.input?.command ?? "").split(/\s+/).slice(0, 4).join(" ")}`);
+            if (c.type === "tool_use") {
+              const target = String(c.input?.file_path ?? c.input?.pattern ?? c.input?.command ?? c.input?.subagent_type ?? c.input?.description ?? "").split(/\s+/).slice(0, 4).join(" ");
+              const desc = c.input?.subagent_type && c.input?.description ? ` (${String(c.input.description).slice(0, 60)})` : "";
+              emit("tool", `${c.name} ${target}${desc}`.trim());
+            }
           }
         } else if (ev.type === "result") {
           info.summary = String(ev.result ?? "").slice(0, 2000);
@@ -386,6 +500,7 @@ function launch(cfg: AgentsConfig, role: string, prompt: string, opts: LaunchOpt
     info.ok = code === 0;
     emit("end", code === 0 ? "bitti" : `hata (çıkış ${code})`);
     current = null;
+    void saveRuns(root);
   });
   return id;
 }

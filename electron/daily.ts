@@ -31,7 +31,12 @@ export function localDay(d = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
-const sameDay = (iso: string | null | undefined, day: string) => !!iso && !Number.isNaN(new Date(iso).getTime()) && localDay(new Date(iso)) === day;
+const sameDay = (iso: string | null | undefined, day: string) => {
+  if (!iso) return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso === day;
+  const t = Date.parse(iso);
+  return !Number.isNaN(t) && localDay(new Date(t)) === day;
+};
 function nextDay(day: string): string {
   const d = new Date(`${day}T12:00:00`);
   d.setDate(d.getDate() + 1);
@@ -75,15 +80,16 @@ export async function daySummary(cfg: AgentsConfig, dayIn?: string): Promise<Day
   const root = requireRepo(cfg);
   const day = dayIn && DAY.test(dayIn) ? dayIn : localDay();
 
-  // 1) yoneticinin satirlari: "- 17:15 — ..." bicimi
+  // 1) yoneticinin satirlari: "- 17:15 — ..." ya da "- 2026-11-24 20:14 — ..." bicimi
   const manager: DayItem[] = [];
   const md = await readText(path.join(root, "raporlar", "gunluk", `${day}.md`)).catch(() => "");
   for (const line of md.split(/\r?\n/)) {
     const m = /^\s*-\s+(.*)$/.exec(line);
     if (!m) continue;
-    const hm = /^(\d{1,2}:\d{2})/.exec(m[1])?.[1] ?? "";
+    const hmMatch = /^(?:\d{4}-\d{2}-\d{2}\s+)?(\d{1,2}:\d{2})\b/.exec(m[1]);
+    const hm = hmMatch?.[1] ?? "";
     // saat zaten ayri sutunda: metnin basindaki "17:15 — " tekrari atilir
-    const text = hm ? m[1].replace(/^\d{1,2}:\d{2}\s*/, "").replace(/^[—–-]\s*/, "").trim() : m[1].trim();
+    const text = hmMatch ? m[1].slice(hmMatch[0].length).replace(/^\s*[—–-]\s*/, "").trim() : m[1].trim();
     manager.push({ text, at: hm ? `${day}T${hm.padStart(5, "0")}:00` : `${day}T00:00:00`, rel: `raporlar/gunluk/${day}.md` });
   }
 
@@ -91,14 +97,55 @@ export async function daySummary(cfg: AgentsConfig, dayIn?: string): Promise<Day
   const app: DayItem[] = [];
   if (cfg.appPath) for (const c of await gitDay(cfg.appPath, day)) app.push({ text: c.subject, at: c.at, tag: commitTag(c.subject) });
 
-  // 3) o gun calisan ajanlar (durum.json lastRun o gun)
+  // 3) o gun calisan ajanlar (durum.json diskte ya da o gunun git gecmisinde)
   const agents: DayItem[] = [];
   const roster = (await readJson<{ roles: { id: string; ad?: string; name: string }[] }>(path.join(root, "roster.json"), { roles: [] })).roles;
+  const roleLabel = new Map(roster.map((r) => [r.id, r.ad || r.name]));
+  const stateLabel = (s?: string) => (s === "failed" ? "hata" : s === "blocked" ? "takıldı" : s === "working" ? "çalışıyor" : s === "idle" ? "bekliyor" : "bitti");
+  type Rec = { role: string; state?: string; lastRun: string; did: string };
+  const recs: Rec[] = [];
   for (const r of roster) {
     const live = await readJson<{ state?: string; lastRun?: string | null; did?: string } | null>(path.join(root, "roller", r.id, "durum.json"), null);
-    if (!live?.did || !sameDay(live.lastRun, day)) continue;
-    const state = live.state === "failed" ? "hata" : live.state === "blocked" ? "takıldı" : live.state === "working" ? "çalışıyor" : live.state === "idle" ? "bekliyor" : "bitti";
-    agents.push({ text: `${r.ad || r.name}: ${live.did}`, at: live.lastRun!, tag: state });
+    if (live?.did && live.lastRun && sameDay(live.lastRun, day)) recs.push({ role: r.id, state: live.state, lastRun: live.lastRun, did: live.did });
+  }
+  const prev = new Date(`${day}T12:00:00`);
+  prev.setDate(prev.getDate() - 1);
+  const after = new Date(`${day}T12:00:00`);
+  after.setDate(after.getDate() + 2);
+  const hist = await run("git", ["log", `--after=${localDay(prev)}T00:00:00`, `--before=${localDay(after)}T00:00:00`, "-p", "--", "roller/*/durum.json"], root, 20_000);
+  if (hist.code === 0) {
+    for (const chunk of hist.out.split(/^diff --git /m).slice(1)) {
+      const role = /^a\/roller\/([a-z0-9-]+)\/durum\.json\b/.exec(chunk)?.[1];
+      if (!role || !roleLabel.has(role)) continue;
+      const added = chunk.split(/\r?\n/).filter((l) => l.startsWith("+") && !l.startsWith("+++")).map((l) => l.slice(1)).join("\n");
+      const state = /"state"\s*:\s*"([^"]+)"/.exec(added)?.[1];
+      const lastRun = /"lastRun"\s*:\s*"([^"]+)"/.exec(added)?.[1];
+      const did = /"did"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(added)?.[1]?.replace(/\\"/g, '"');
+      if (did && lastRun && sameDay(lastRun, day)) recs.push({ role, state, lastRun, did });
+    }
+  }
+  if (roleLabel.has("build")) {
+    const stMd = await readText(path.join(root, "state.md")).catch(() => "");
+    const sec = stMd.split(/^## Build decision log\b/m)[1] ?? "";
+    for (const line of sec.split(/\r?\n/)) {
+      const bm = /^-\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}):\s+(.+)$/.exec(line);
+      if (bm && bm[1] === day) recs.push({ role: "build", state: "done", lastRun: `${day}T${bm[2]}:00+03:00`, did: bm[3].trim() });
+    }
+  }
+  const seenAgents = new Set<string>();
+  for (const rec of recs) {
+    const isWorking = rec.state === "working" || /^run started\b/i.test(rec.did);
+    if (isWorking) {
+      const t0 = Date.parse(rec.lastRun) || 0;
+      const finished = recs.some((o) => o.role === rec.role && o.state !== "working" && !/^run started\b/i.test(o.did) && Math.abs((Date.parse(o.lastRun) || 0) - t0) < 120 * 60_000);
+      if (finished) continue;
+    }
+    const key = `${rec.role}|${rec.did}`;
+    if (seenAgents.has(key)) continue;
+    seenAgents.add(key);
+    const cutOff = isWorking && Date.now() - (Date.parse(rec.lastRun) || 0) >= 3 * 60 * 60_000;
+    const tag = cutOff ? "yarıda kaldı" : stateLabel(rec.state);
+    agents.push({ text: `${roleLabel.get(rec.role)}: ${rec.did}`, at: rec.lastRun, tag });
   }
 
   // 4) o gun yazilan sonuclar (son commit tarihi ya da, gonderilmediyse, dosya tarihi)
@@ -127,10 +174,15 @@ export async function daySummary(cfg: AgentsConfig, dayIn?: string): Promise<Day
   for (const [dir, tag] of [["approvals/pending", "Bekliyor"], ["approvals/decided", "Karar verildi"]] as const) {
     for (const n of await listMd(path.join(root, dir))) {
       const { fm, body } = frontMatter(await readText(path.join(root, dir, n)).catch(() => ""));
-      const at = tag === "Bekliyor" ? fm.created : fm.decided || fm.created;
-      if (!sameDay(at, day)) continue;
       const title = /^#\s+(.+)$/m.exec(body)?.[1] ?? n.replace(/\.md$/, "");
-      approvals.push({ text: title, at: at!, rel: `${dir}/${n}`, tag: tag === "Bekliyor" ? tag : fm.decision === "rejected" ? "Reddedildi" : "Onaylandı" });
+      const rel = `${dir}/${n}`;
+      if (tag === "Bekliyor") {
+        if (sameDay(fm.created, day)) approvals.push({ text: title, at: fm.created!, rel, tag });
+      } else {
+        const decAt = fm.decided || fm.created;
+        if (sameDay(decAt, day)) approvals.push({ text: title, at: decAt!, rel, tag: fm.decision === "rejected" ? "Reddedildi" : "Onaylandı" });
+        else if (sameDay(fm.created, day)) approvals.push({ text: title, at: fm.created!, rel, tag: "Açıldı" });
+      }
     }
   }
 

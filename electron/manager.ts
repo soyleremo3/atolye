@@ -88,7 +88,7 @@ export async function status(cfg: AgentsConfig): Promise<ManagerStatus> {
   const finishedAfter = !!live?.lastRun && new Date(live.lastRun).getTime() > firedAt;
   if (live?.state === "working" && now - changed < RUN_WINDOW) phase = "running";
   else if (last && now - firedAt < RUN_WINDOW) phase = finishedAfter ? "done" : now - firedAt < COOLDOWN ? "starting" : "running";
-  else if (last && finishedAfter) phase = "done";
+  else if ((last && finishedAfter) || live?.lastRun) phase = "done";
   return {
     hasToken: existsSync(tokenFile()),
     canEncrypt: canEncrypt(),
